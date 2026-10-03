@@ -21,7 +21,10 @@ import {
   Home,
   ShieldCheck,
   Zap,
+  LogOut,
+  User,
 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
 
 export type DashboardTab =
   | "overview"
@@ -47,6 +50,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
+  const { user, role, logout } = useAuth();
 
   const navGroups = [
     {
@@ -240,6 +244,17 @@ export function AppSidebar({
       {/* Bottom Footer Actions */}
       <div className="p-3 border-t border-[rgba(31,36,48,0.06)] bg-[#FAF8F5]/60 space-y-2">
         <Link
+          href="/shop"
+          className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#435278] hover:text-[#1F2430] hover:bg-white transition-colors border border-[rgba(67,82,120,0.12)] bg-white/60 ${
+            collapsed ? "justify-center px-0" : ""
+          }`}
+          title="Open Customer Checkout Simulator"
+        >
+          <ShoppingBag className="w-4 h-4 text-[#8FB8A0]" />
+          {!collapsed && <span>Customer Shop Rail</span>}
+        </Link>
+
+        <Link
           href="/"
           className={`flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#586071] hover:text-[#1F2430] hover:bg-white transition-colors ${
             collapsed ? "justify-center px-0" : ""
@@ -251,17 +266,28 @@ export function AppSidebar({
         </Link>
 
         {!collapsed && (
-          <div className="px-3 py-2 rounded-xl bg-white border border-[rgba(31,36,48,0.06)] flex items-center justify-between text-xs">
-            <div className="flex items-center gap-2">
-              <div className="h-7 w-7 rounded-full bg-[#EEF2F7] border border-[#D1E0EE] flex items-center justify-center font-bold text-[#435278] text-xs">
-                OP
+          <div className="px-3 py-2.5 rounded-xl bg-white border border-[rgba(31,36,48,0.08)] flex items-center justify-between text-xs shadow-2xs">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="h-7 w-7 rounded-full bg-[#EEF2F7] border border-[#D1E0EE] flex items-center justify-center font-bold text-[#435278] text-xs shrink-0">
+                {user?.full_name ? user.full_name.charAt(0) : "A"}
               </div>
-              <div className="flex flex-col">
-                <span className="font-semibold text-[#1F2430]">Risk Ops</span>
-                <span className="text-[10px] text-[#8A92A2]">Tier 2 Lead</span>
+              <div className="flex flex-col min-w-0">
+                <span className="font-semibold text-[#1F2430] truncate text-xs">
+                  {user?.full_name || "Elena Vance"}
+                </span>
+                <span className="text-[10px] text-[#8A92A2] uppercase tracking-wider font-mono">
+                  {role === "analyst" ? "Lead Analyst" : role === "customer" ? "Customer User" : "Analyst"}
+                </span>
               </div>
             </div>
-            <span className="inline-flex h-2 w-2 rounded-full bg-[#8FB8A0]" />
+            <button
+              type="button"
+              onClick={logout}
+              className="p-1 text-[#8A92A2] hover:text-[#D16D6D] hover:bg-[#FAF8F5] rounded-lg transition-colors cursor-pointer"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </div>

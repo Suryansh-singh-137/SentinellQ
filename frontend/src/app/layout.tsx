@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Inter, JetBrains_Mono, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "@/context/LanguageContext";
+import { AuthProvider } from "@/context/AuthContext";
 
 const fraunces = Fraunces({
   variable: "--font-fraunces",
@@ -57,7 +58,9 @@ export default function RootLayout({
       className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} ${devanagari.variable} antialiased scroll-smooth`}
     >
       <body className="min-h-screen bg-[var(--background)] text-[var(--ink-primary)] selection:bg-[#E2E8F0] selection:text-[#1F2430]">
-        <LanguageProvider>{children}</LanguageProvider>
+        <AuthProvider>
+          <LanguageProvider>{children}</LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );
