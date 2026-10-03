@@ -50,7 +50,19 @@ export function Navbar() {
           </Link>
 
           {/* Desktop Navigation Links */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-6">
+            <Link
+              href="/shop"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#F1F3F5] text-[#1F2430] hover:bg-[#E5E7EB] transition-colors"
+            >
+              🛒 Checkout Precheck (/shop)
+            </Link>
+            <Link
+              href="/analyst"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-[#435278] text-white hover:bg-[#344161] transition-colors"
+            >
+              🛡️ Analyst Dashboard (/analyst)
+            </Link>
             {t.nav.links.map((link) => (
               <a
                 key={link.href}
