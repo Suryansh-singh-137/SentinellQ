@@ -46,15 +46,19 @@ yarn-error.log*
 *.pth
 *.onnx
 
-ml/models/
-ml/artifacts/
+ml/models/*
+!ml/models/.gitkeep
+ml/artifacts/*
+!ml/artifacts/.gitkeep
 
 # =========================
 # Data
 # =========================
 
-data/raw/
-data/generated/
+data/raw/*
+!data/raw/.gitkeep
+data/generated/*
+!data/generated/.gitkeep
 
 *.csv
 *.parquet
