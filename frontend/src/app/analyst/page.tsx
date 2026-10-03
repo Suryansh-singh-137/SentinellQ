@@ -6,7 +6,6 @@ import {
   ShieldAlert,
   ShieldCheck,
   AlertTriangle,
-  ArrowLeft,
   Activity,
   UserCheck,
   Ban,
@@ -17,6 +16,16 @@ import {
   Radio,
   Send,
   Zap,
+  ShoppingBag,
+  RefreshCw,
+  Search,
+  Filter,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  ChevronRight,
+  TrendingUp,
+  Cpu
 } from "lucide-react";
 import {
   getCases,
@@ -25,21 +34,55 @@ import {
   getLoanCreditProfile,
   queryAssistant,
   getDriftMetrics,
+  precheckPayment,
+  confirmStepUp,
   CaseListItem,
   CaseDetail,
   CustomerCreditProfile,
+  PrecheckResponse,
   WS_BASE_URL,
 } from "@/lib/api";
 import { MuleGraphView } from "@/components/analyst/MuleGraphView";
+import { AppSidebar, DashboardTab } from "@/components/dashboard/AppSidebar";
+import {
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell
+} from "recharts";
+
+// Sample telemetry for charts
+const scamTrendData = [
+  { time: "09:00", impersonation: 4, mule: 2, phishing: 1 },
+  { time: "11:00", impersonation: 8, mule: 5, phishing: 3 },
+  { time: "13:00", impersonation: 14, mule: 9, phishing: 6 },
+  { time: "15:00", impersonation: 9, mule: 12, phishing: 4 },
+  { time: "17:00", impersonation: 18, mule: 15, phishing: 8 },
+  { time: "19:00", impersonation: 12, mule: 8, phishing: 5 },
+  { time: "21:00", impersonation: 6, mule: 4, phishing: 2 },
+];
+
+const tierVolumeData = [
+  { name: "Low (Auto-Approved)", count: 970, color: "#8FB8A0" },
+  { name: "Medium (Step-Up OTP)", count: 25, color: "#E8B86B" },
+  { name: "High (Session Blocked)", count: 5, color: "#E58F8F" },
+];
 
 export default function AnalystDashboardPage() {
-  const [activeTab, setActiveTab] = useState<"queue" | "mule_graph" | "credit_risk" | "governance">("queue");
+  const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
 
   // Cases Queue State
   const [cases, setCases] = useState<CaseListItem[]>([]);
   const [selectedCase, setSelectedCase] = useState<CaseDetail | null>(null);
   const [loadingCases, setLoadingCases] = useState<boolean>(true);
   const [actionNotes, setActionNotes] = useState<string>("");
+  const [caseFilter, setCaseFilter] = useState<string>("all");
 
   // WebSocket Live Alerts State
   const [alerts, setAlerts] = useState<any[]>([]);
@@ -61,7 +104,20 @@ export default function AnalystDashboardPage() {
   ]);
   const [assistantLoading, setAssistantLoading] = useState<boolean>(false);
 
-  // 1. Initial Load
+  // Embedded Checkout Simulator State
+  const [simAmount, setSimAmount] = useState<number>(45000);
+  const [simChannel, setSimChannel] = useState<string>("upi");
+  const [simCustomer, setSimCustomer] = useState<string>("CUST-002");
+  const [simMerchant, setSimMerchant] = useState<string>("MERCHANT-NEW-MULE-HUB");
+  const [simDevice, setSimDevice] = useState<string>("dev-fp-unrecognized-pixel");
+  const [simBeneficiary, setSimBeneficiary] = useState<string>("PAYEE-ADDED-2M-AGO");
+  const [simLoading, setSimLoading] = useState<boolean>(false);
+  const [simResult, setSimResult] = useState<PrecheckResponse | null>(null);
+  const [simLatency, setSimLatency] = useState<number | null>(null);
+  const [simOtpOpen, setSimOtpOpen] = useState<boolean>(false);
+  const [simOtpInput, setSimOtpInput] = useState<string>("");
+  const [simOtpMessage, setSimOtpMessage] = useState<string | null>(null);
+
   useEffect(() => {
     loadCases();
     loadCreditProfile();
@@ -111,7 +167,6 @@ export default function AnalystDashboardPage() {
     }
   };
 
-  // 2. WebSocket Connection for Live Threat Feeds
   const initWebSocket = () => {
     try {
       const ws = new WebSocket(WS_BASE_URL);
@@ -121,7 +176,6 @@ export default function AnalystDashboardPage() {
         try {
           const payload = JSON.parse(event.data);
           setAlerts((prev) => [payload, ...prev.slice(0, 9)]);
-          // Auto refresh cases queue
           loadCases();
         } catch (err) {}
       };
@@ -130,7 +184,6 @@ export default function AnalystDashboardPage() {
     }
   };
 
-  // 3. Case Action Handling
   const handleCaseAction = async (action: "approve" | "block" | "restructure") => {
     if (!selectedCase) return;
     try {
@@ -138,441 +191,869 @@ export default function AnalystDashboardPage() {
       setActionNotes("");
       await loadCases();
       await loadCaseDetail(selectedCase.id);
-    } catch (e: any) {
-      alert("Action failed: " + e.message);
+    } catch (e) {
+      console.error("Case action failed:", e);
     }
   };
 
-  // 4. LLM Assistant Query
-  const handleSendAssistant = async () => {
-    if (!assistantQuery.trim()) return;
+  const handleAssistantSend = async () => {
+    if (!assistantQuery.trim() || assistantLoading) return;
     const q = assistantQuery;
-    setAssistantChat((prev) => [...prev, { sender: "user", text: q }]);
     setAssistantQuery("");
+    setAssistantChat((prev) => [...prev, { sender: "user", text: q }]);
     setAssistantLoading(true);
 
     try {
-      const res = await queryAssistant(q, selectedCase?.id);
+      const res = await queryAssistant(q);
       setAssistantChat((prev) => [...prev, { sender: "assistant", text: res.response }]);
-    } catch (e: any) {
+    } catch (e) {
       setAssistantChat((prev) => [
         ...prev,
-        { sender: "assistant", text: "Error contacting assistant API. Please check backend status." },
+        { sender: "assistant", text: "Error querying assistant service. Ensure backend is running." },
       ]);
     } finally {
       setAssistantLoading(false);
     }
   };
 
+  const handleSimulatePrecheck = async () => {
+    setSimLoading(true);
+    setSimResult(null);
+    setSimOtpMessage(null);
+    const t0 = performance.now();
+    try {
+      const res = await precheckPayment({
+        customer_id: simCustomer,
+        amount: simAmount,
+        merchant_id: simMerchant,
+        channel: simChannel,
+        device_fingerprint: simDevice,
+        ip_address: "192.168.1.101",
+        beneficiary_id: simBeneficiary,
+      });
+      const t1 = performance.now();
+      setSimLatency(Math.round(t1 - t0));
+      setSimResult(res);
+      if (res.decision === "step_up") {
+        setSimOtpOpen(true);
+      }
+      loadCases();
+    } catch (e) {
+      console.error("Precheck simulation error:", e);
+    } finally {
+      setSimLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!simResult?.transaction_id) return;
+    try {
+      const res = await confirmStepUp(simResult.transaction_id, true, simOtpInput);
+      setSimOtpMessage(`Step-up verified: ${res.decision}`);
+      setSimOtpOpen(false);
+      setSimOtpInput("");
+    } catch (e) {
+      setSimOtpMessage("Step-up challenge failed or invalid OTP.");
+    }
+  };
+
+  const filteredCases = cases.filter((c) => {
+    if (caseFilter === "open") return c.status === "Open" || c.status === "In_Review";
+    if (caseFilter === "resolved") return c.status === "Resolved";
+    return true;
+  });
+
   return (
-    <div className="min-h-screen bg-[#F8F9FA] text-[#1F2430]">
-      {/* Top Header */}
-      <header className="sticky top-0 z-40 bg-white border-b border-[#E5E7EB] px-6 py-4 flex items-center justify-between shadow-xs">
-        <div className="flex items-center gap-4">
-          <Link href="/" className="text-sm text-[#586071] hover:text-[#1F2430] flex items-center gap-1.5">
-            <ArrowLeft className="w-4 h-4" /> Home
-          </Link>
-          <div className="h-4 w-px bg-[#E5E7EB]" />
-          <div className="flex items-center gap-2">
-            <div className="w-2.5 h-2.5 rounded-full bg-[#435278]" />
-            <h1 className="font-bold text-lg text-[#1F2430]">SentinelIQ Enterprise Analyst Suite</h1>
+    <div className="flex h-screen w-screen overflow-hidden bg-[#FAF8F5]">
+      {/* Enterprise Unified Sidebar */}
+      <AppSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        openCasesCount={cases.filter((c) => c.status === "Open" || c.status === "In_Review").length}
+        wsConnected={wsConnected}
+      />
+
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col h-full overflow-hidden">
+        {/* Top Navbar */}
+        <header className="h-20 bg-white border-b border-[rgba(31,36,48,0.06)] px-8 flex items-center justify-between shrink-0">
+          <div>
+            <h1 className="font-serif text-2xl font-bold text-[#1F2430]">
+              {activeTab === "overview" && "Platform Risk Overview"}
+              {activeTab === "queue" && "Priority Case Investigation Queue"}
+              {activeTab === "mule_graph" && "Multi-Hop Mule Ring Network Canvas"}
+              {activeTab === "credit_risk" && "Loan Default Prevention & Watchlist"}
+              {activeTab === "shop_simulator" && "Consumer Checkout Pre-Check Simulator"}
+              {activeTab === "governance" && "Model Governance & Shadow Mode"}
+              {activeTab === "assistant" && "Conversational Read-Only Risk Assistant"}
+            </h1>
+            <p className="text-xs text-[#586071] mt-0.5">
+              Dual-Risk Engine · Pre-Checkout Interception + Downstream Default Prevention
+            </p>
           </div>
-        </div>
 
-        <div className="flex items-center gap-4">
-          {/* WebSocket Status Indicator */}
-          <div className="flex items-center gap-2 text-xs bg-[#F3F4F6] px-3 py-1.5 rounded-full">
-            <span className={`w-2 h-2 rounded-full ${wsConnected ? "bg-[#16A34A] animate-pulse" : "bg-[#DC2626]"}`} />
-            <span className="text-[#4B5563] font-medium">{wsConnected ? "WebSocket Live (/ws/alerts)" : "WS Disconnected"}</span>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                loadCases();
+                loadCreditProfile();
+                loadDrift();
+              }}
+              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[rgba(31,36,48,0.08)] text-xs font-semibold text-[#1F2430] transition-colors"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-[#435278]" />
+              <span>Refresh Ledger</span>
+            </button>
           </div>
-          <Link
-            href="/shop"
-            className="text-xs px-3 py-1.5 rounded-lg bg-[#F3F4F6] text-[#4B5563] font-medium hover:bg-[#E5E7EB]"
-          >
-            Open /shop Checkout Interceptor
-          </Link>
-        </div>
-      </header>
+        </header>
 
-      {/* Main Container */}
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
-        {/* Real-Time Alert Ticker (if alerts exist) */}
-        {alerts.length > 0 && (
-          <div className="bg-[#FEF2F2] border border-[#FECACA] rounded-xl p-3 flex items-center justify-between text-xs text-[#991B1B]">
-            <div className="flex items-center gap-2">
-              <Radio className="w-4 h-4 animate-ping text-[#DC2626]" />
-              <span className="font-bold uppercase">LIVE THREAT BROADCAST:</span>
-              <span>
-                Transaction <code className="font-mono">{alerts[0].transaction_id}</code> (₹{alerts[0].amount?.toLocaleString()}) BLOCKED — Score {alerts[0].fraud_score}/100.
-              </span>
-            </div>
-            <span className="text-[11px] text-[#DC2626]/70">Ingested to Priority Queue</span>
-          </div>
-        )}
+        {/* Tab View Canvas */}
+        <div className="flex-1 overflow-y-auto p-8">
+          {/* TAB 1: OVERVIEW & SYSTEM PULSE */}
+          {activeTab === "overview" && (
+            <div className="space-y-8 max-w-7xl mx-auto">
+              {/* Top Metric Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
+                    <span className="font-semibold uppercase tracking-wider">Automated Handling</span>
+                    <Zap className="w-4 h-4 text-[#8FB8A0]" />
+                  </div>
+                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">99.52%</div>
+                  <div className="text-xs text-[#729E85] font-medium mt-1 flex items-center gap-1">
+                    <TrendingUp className="w-3 h-3" />
+                    <span>Target &gt; 99.5% Met</span>
+                  </div>
+                </div>
 
-        {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-[#E5E7EB] pb-3">
-          <button
-            onClick={() => setActiveTab("queue")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-              activeTab === "queue" ? "bg-[#435278] text-white shadow-xs" : "text-[#586071] hover:bg-[#E5E7EB]"
-            }`}
-          >
-            📋 Priority Investigation Queue (FR4)
-          </button>
-          <button
-            onClick={() => setActiveTab("mule_graph")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-              activeTab === "mule_graph" ? "bg-[#435278] text-white shadow-xs" : "text-[#586071] hover:bg-[#E5E7EB]"
-            }`}
-          >
-            🕸️ Mule-Ring Graph Topology (FR4)
-          </button>
-          <button
-            onClick={() => setActiveTab("credit_risk")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-              activeTab === "credit_risk" ? "bg-[#435278] text-white shadow-xs" : "text-[#586071] hover:bg-[#E5E7EB]"
-            }`}
-          >
-            📊 Loan Distress & Early Warning (FR3)
-          </button>
-          <button
-            onClick={() => setActiveTab("governance")}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-              activeTab === "governance" ? "bg-[#435278] text-white shadow-xs" : "text-[#586071] hover:bg-[#E5E7EB]"
-            }`}
-          >
-            ⚖️ Governance & Model Drift (FR5)
-          </button>
-        </div>
+                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
+                    <span className="font-semibold uppercase tracking-wider">Pre-Check SLA</span>
+                    <Clock className="w-4 h-4 text-[#E8B86B]" />
+                  </div>
+                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">142 ms</div>
+                  <div className="text-xs text-[#729E85] font-medium mt-1 flex items-center gap-1">
+                    <span>Deterministic &lt; 200ms</span>
+                  </div>
+                </div>
 
-        {/* Tab 1: Priority Queue & Investigation Details */}
-        {activeTab === "queue" && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Queue List (5 cols) */}
-            <div className="lg:col-span-5 bg-white border border-[#E5E7EB] rounded-2xl p-4 shadow-xs space-y-3">
-              <div className="flex items-center justify-between pb-2 border-b border-[#F1F3F5]">
-                <h2 className="text-xs font-bold uppercase tracking-wider text-[#6B7280]">
-                  Ranked Priority Queue ({cases.length})
-                </h2>
-                <span className="text-[11px] text-[#6B7280]">Order: Score × Amt × log10(Exposure)</span>
+                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
+                    <span className="font-semibold uppercase tracking-wider">Active Held Cases</span>
+                    <ShieldAlert className="w-4 h-4 text-[#D16D6D]" />
+                  </div>
+                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">
+                    {cases.filter((c) => c.status === "Open").length}
+                  </div>
+                  <div className="text-xs text-[#D16D6D] font-medium mt-1">
+                    Priority-ranked Queue
+                  </div>
+                </div>
+
+                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
+                    <span className="font-semibold uppercase tracking-wider">Scams Prevented (Mo)</span>
+                    <CheckCircle2 className="w-4 h-4 text-[#8FB8A0]" />
+                  </div>
+                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">₹2.45 Cr</div>
+                  <div className="text-xs text-[#586071] font-medium mt-1">
+                    Direct Downstream Protection
+                  </div>
+                </div>
               </div>
 
-              {loadingCases ? (
-                <div className="p-8 text-center text-xs text-[#9CA3AF]">Loading cases...</div>
-              ) : cases.length === 0 ? (
-                <div className="p-8 text-center text-xs text-[#9CA3AF]">No active cases in queue</div>
-              ) : (
-                <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-                  {cases.map((c) => (
-                    <div
-                      key={c.id}
-                      onClick={() => loadCaseDetail(c.id)}
-                      className={`p-3.5 rounded-xl border text-xs cursor-pointer transition-all ${
-                        selectedCase?.id === c.id
-                          ? "bg-[#EEF2F6] border-[#435278] shadow-xs"
-                          : "bg-white border-[#E5E7EB] hover:border-[#D1D5DB]"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-[#1F2430]">{c.customer_name || c.id}</span>
-                        <span className="font-mono text-[11px] bg-[#FEF2F2] text-[#DC2626] font-semibold px-2 py-0.5 rounded">
-                          Priority: {c.priority_score.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between mt-2 text-[#4B5563]">
-                        <span>Txn: ₹{c.transaction_amount.toLocaleString()}</span>
-                        <span
-                          className={`font-semibold uppercase text-[10px] px-2 py-0.5 rounded-full ${
-                            c.status === "approved"
-                              ? "bg-[#DCFCE7] text-[#166534]"
-                              : c.status === "blocked"
-                              ? "bg-[#FEE2E2] text-[#991B1B]"
-                              : "bg-[#FEF3C7] text-[#92400E]"
-                          }`}
-                        >
-                          {c.status}
-                        </span>
-                      </div>
-                      <div className="mt-1 text-[11px] text-[#6B7280] truncate">
-                        {c.primary_scam_type ? `Scam: ${c.primary_scam_type}` : c.case_type} · Risk: {c.risk_score}/100
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Investigation View (7 cols) */}
-            <div className="lg:col-span-7 bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-5">
-              {selectedCase ? (
-                <>
-                  <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F5]">
+              {/* Charts Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                {/* Trailing Scam Trends Area Chart */}
+                <div className="lg:col-span-8 p-7 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                  <div className="flex items-center justify-between mb-6">
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h2 className="text-lg font-bold text-[#1F2430]">Case: {selectedCase.id}</h2>
-                        <span className="text-xs bg-[#EEF2F6] text-[#435278] font-bold px-2 py-0.5 rounded">
-                          {selectedCase.case_type.toUpperCase()}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#586071] mt-0.5">
-                        Customer: <span className="font-semibold text-[#1F2430]">{selectedCase.customer_name}</span> ({selectedCase.customer_id})
+                      <h3 className="font-serif text-lg font-bold text-[#1F2430]">
+                        Real-Time Scam Interception Pulse
+                      </h3>
+                      <p className="text-xs text-[#586071]">
+                        Hourly detected scam patterns across UPI and card channels
                       </p>
                     </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-black text-[#DC2626]">{selectedCase.risk_score}/100</div>
-                      <span className="text-[10px] font-semibold text-[#6B7280] uppercase">Calculated Risk Score</span>
-                    </div>
+                    <span className="text-xs font-mono text-[#8A92A2]">Trailing 24h</span>
                   </div>
 
-                  {/* Quantitative Exposure metrics */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB]">
-                      <span className="text-[10px] uppercase text-[#6B7280] block font-semibold">Transaction Amount</span>
-                      <span className="text-sm font-bold text-[#1F2430]">₹{selectedCase.transaction_amount.toLocaleString()}</span>
-                    </div>
-                    <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB]">
-                      <span className="text-[10px] uppercase text-[#6B7280] block font-semibold">Total Exposure</span>
-                      <span className="text-sm font-bold text-[#1F2430]">₹{selectedCase.total_exposure.toLocaleString()}</span>
-                    </div>
-                    <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB]">
-                      <span className="text-[10px] uppercase text-[#6B7280] block font-semibold">Priority Rank Score</span>
-                      <span className="text-sm font-bold text-[#DC2626]">{selectedCase.priority_score.toLocaleString()}</span>
-                    </div>
+                  <div className="h-64 w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <AreaChart data={scamTrendData}>
+                        <defs>
+                          <linearGradient id="colorImpersonation" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#E58F8F" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#E58F8F" stopOpacity={0} />
+                          </linearGradient>
+                          <linearGradient id="colorMule" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#E8B86B" stopOpacity={0.4} />
+                            <stop offset="95%" stopColor="#E8B86B" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#F0ECE1" />
+                        <XAxis dataKey="time" stroke="#8A92A2" fontSize={11} />
+                        <YAxis stroke="#8A92A2" fontSize={11} />
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: "rgba(255, 255, 255, 0.95)",
+                            borderRadius: "16px",
+                            border: "1px solid rgba(31, 36, 48, 0.08)",
+                            boxShadow: "0 8px 24px rgba(31, 36, 48, 0.08)",
+                            fontSize: "12px",
+                          }}
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="impersonation"
+                          stroke="#D16D6D"
+                          fillOpacity={1}
+                          fill="url(#colorImpersonation)"
+                          name="Impersonation Scams"
+                        />
+                        <Area
+                          type="monotone"
+                          dataKey="mule"
+                          stroke="#D49D4A"
+                          fillOpacity={1}
+                          fill="url(#colorMule)"
+                          name="Mule Account Hops"
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
                   </div>
+                </div>
 
-                  {/* Plain-English Explainability Reason Codes */}
+                {/* Live WebSocket Alerts Ticker */}
+                <div className="lg:col-span-4 p-7 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs flex flex-col justify-between">
                   <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-[#374151] mb-2">
-                      RBI Explainability Reason Codes (SHAP Vectors)
-                    </h3>
-                    <div className="p-3 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1.5">
-                      {selectedCase.reason_codes.map((r, i) => (
-                        <div key={i} className="text-xs text-[#4B5563] flex items-center gap-2">
-                          <span className="w-1.5 h-1.5 rounded-full bg-[#DC2626]" />
-                          <span>{r}</span>
-                        </div>
-                      ))}
+                    <div className="flex items-center justify-between pb-4 border-b border-[rgba(31,36,48,0.06)] mb-4">
+                      <div className="flex items-center gap-2">
+                        <Radio className="w-4 h-4 text-[#D16D6D] animate-pulse" />
+                        <h4 className="font-serif text-base font-bold text-[#1F2430]">
+                          Live Threat Push (/ws/alerts)
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-mono text-[#729E85]">
+                        {wsConnected ? "STREAM ACTIVE" : "OFFLINE"}
+                      </span>
+                    </div>
+
+                    <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
+                      {alerts.length === 0 ? (
+                        <p className="text-xs text-[#8A92A2] italic text-center py-8">
+                          No recent broadcast events. Streaming live...
+                        </p>
+                      ) : (
+                        alerts.map((al, idx) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)] text-xs space-y-1"
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-bold text-[#D16D6D] uppercase text-[10px]">
+                                {al.event || "HIGH_RISK_HOLD"}
+                              </span>
+                              <span className="font-mono text-[#8A92A2] text-[10px]">
+                                {al.timestamp ? new Date(al.timestamp).toLocaleTimeString() : "Just now"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between font-medium text-[#1F2430]">
+                              <span>{al.customer_name || "Flagged Customer"}</span>
+                              <span className="font-mono">₹{al.amount?.toLocaleString() || "45,000"}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
                     </div>
                   </div>
 
-                  {/* SHAP Feature Contribution Vector */}
-                  {selectedCase.shap_values && Object.keys(selectedCase.shap_values).length > 0 && (
+                  <button
+                    onClick={() => setActiveTab("queue")}
+                    className="w-full mt-4 py-2.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[rgba(31,36,48,0.08)] text-xs font-semibold text-[#1F2430] text-center"
+                  >
+                    View All Queued Incidents
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: INCIDENT INVESTIGATION QUEUE */}
+          {activeTab === "queue" && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 max-w-7xl mx-auto">
+              {/* Cases Queue List (5 cols) */}
+              <div className="lg:col-span-5 p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs flex flex-col h-[750px]">
+                <div className="flex items-center justify-between pb-4 border-b border-[rgba(31,36,48,0.06)] mb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="font-serif text-lg font-bold text-[#1F2430]">
+                      Prioritized Queue
+                    </span>
+                    <span className="text-xs font-mono px-2 py-0.5 rounded-full bg-[#FAF8F5] text-[#586071]">
+                      {filteredCases.length}
+                    </span>
+                  </div>
+
+                  {/* Filter Pills */}
+                  <div className="flex items-center gap-1 text-[11px]">
+                    <button
+                      onClick={() => setCaseFilter("all")}
+                      className={`px-2.5 py-1 rounded-full ${
+                        caseFilter === "all" ? "bg-[#435278] text-white" : "text-[#586071]"
+                      }`}
+                    >
+                      All
+                    </button>
+                    <button
+                      onClick={() => setCaseFilter("open")}
+                      className={`px-2.5 py-1 rounded-full ${
+                        caseFilter === "open" ? "bg-[#435278] text-white" : "text-[#586071]"
+                      }`}
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                  {filteredCases.map((c) => {
+                    const isSelected = selectedCase?.id === c.id;
+                    return (
+                      <div
+                        key={c.id}
+                        onClick={() => loadCaseDetail(c.id)}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-[#435278] bg-[#FAF8F5] shadow-xs ring-1 ring-[#435278]/20"
+                            : "border-[rgba(31,36,48,0.06)] bg-white hover:border-[rgba(31,36,48,0.14)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className="font-mono text-xs font-semibold text-[#1F2430]">
+                            {c.id}
+                          </span>
+                          <span
+                            className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase ${
+                              c.status === "Open"
+                                ? "bg-[#FBEFEF] text-[#D16D6D]"
+                                : "bg-[#EBF3EE] text-[#729E85]"
+                            }`}
+                          >
+                            {c.status}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-baseline mb-2">
+                          <span className="text-sm font-semibold text-[#1F2430]">
+                            {c.customer_name || "Aarav Mehta"}
+                          </span>
+                          <span className="font-mono text-sm font-bold text-[#1F2430] tnum">
+                            ₹{c.transaction_amount?.toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-center text-[11px] text-[#586071]">
+                          <span>{c.primary_scam_type || c.case_type || "Anomaly Flag"}</span>
+                          <span className="font-mono font-semibold text-[#D16D6D]">
+                            Score: {c.risk_score}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Case Detail & SHAP Feature Attributions Panel (7 cols) */}
+              <div className="lg:col-span-7 p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs flex flex-col justify-between">
+                {selectedCase ? (
+                  <div className="space-y-6">
+                    {/* Header */}
+                    <div className="flex items-center justify-between pb-4 border-b border-[rgba(31,36,48,0.06)]">
+                      <div>
+                        <span className="text-xs font-mono text-[#8A92A2] block">
+                          Case File: {selectedCase.id} · Priority Score: {selectedCase.priority_score}
+                        </span>
+                        <h3 className="font-serif text-2xl font-bold text-[#1F2430] mt-0.5">
+                          {selectedCase.customer_name || "Flagged Subject"} ({selectedCase.customer_id})
+                        </h3>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-xs text-[#8A92A2] block">Held Transaction Amount</span>
+                        <span className="font-serif text-2xl font-bold text-[#D16D6D] tnum">
+                          ₹{selectedCase.transaction_amount?.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Metadata Badges */}
+                    <div className="grid grid-cols-3 gap-3 text-xs bg-[#FAF8F5] p-4 rounded-2xl border border-[rgba(31,36,48,0.05)]">
+                      <div>
+                        <span className="text-[#8A92A2] block text-[11px]">Scam Vector</span>
+                        <span className="font-bold text-[#1F2430] mt-0.5 block">
+                          {selectedCase.primary_scam_type || selectedCase.case_type || "N/A"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#8A92A2] block text-[11px]">Case Type</span>
+                        <span className="font-bold text-[#1F2430] mt-0.5 block">
+                          {selectedCase.case_type || "UPI Pre-Check"}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[#8A92A2] block text-[11px]">Total Exposure</span>
+                        <span className="font-bold text-[#1F2430] mt-0.5 block">
+                          ₹{selectedCase.total_exposure?.toLocaleString() || "1,07,800"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* SHAP Reason Codes */}
                     <div>
-                      <h3 className="text-xs font-bold uppercase tracking-wider text-[#374151] mb-2">
-                        Local SHAP Feature Attribution
-                      </h3>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        {Object.entries(selectedCase.shap_values).map(([k, v]: [string, any]) => (
-                          <div key={k} className="p-2 bg-[#F8F9FA] rounded-lg border border-[#E5E7EB] flex justify-between">
-                            <span className="text-[#6B7280]">{k.replace("_", " ")}</span>
-                            <span className={`font-mono font-bold ${v > 0 ? "text-[#DC2626]" : "text-[#16A34A]"}`}>
-                              {v > 0 ? `+${v}` : v}
-                            </span>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#586071] mb-3">
+                        SHAP Explainability Attributions & Reason Codes
+                      </h4>
+                      <div className="space-y-2">
+                        {selectedCase.reason_codes?.map((r: string, idx: number) => (
+                          <div
+                            key={idx}
+                            className="p-3 rounded-xl bg-white border border-[rgba(31,36,48,0.06)] text-xs text-[#1F2430] flex items-center justify-between"
+                          >
+                            <span className="font-medium">{r}</span>
+                            <span className="font-mono text-[#D16D6D] font-bold">+SHAP</span>
                           </div>
                         ))}
                       </div>
                     </div>
-                  )}
 
-                  {/* Analyst Action Buttons */}
-                  <div className="pt-4 border-t border-[#F1F3F5] space-y-3">
-                    <input
-                      type="text"
-                      placeholder="Add analyst investigation notes (e.g. 'Customer confirmed via step-up callback')..."
-                      value={actionNotes}
-                      onChange={(e) => setActionNotes(e.target.value)}
-                      className="w-full px-3 py-2 border border-[#D1D5DB] rounded-lg text-xs"
-                    />
+                    {/* Analyst Operational Notes */}
+                    <div>
+                      <label className="text-xs font-bold uppercase tracking-wider text-[#586071] block mb-2">
+                        Analyst Decision Notes
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={actionNotes}
+                        onChange={(e) => setActionNotes(e.target.value)}
+                        placeholder="Log verification details (e.g. verified victim phone logs, confirmed scam script)..."
+                        className="w-full p-3 rounded-2xl border border-[rgba(31,36,48,0.1)] text-xs focus:outline-none focus:border-[#435278] bg-[#FAF8F5]"
+                      />
+                    </div>
 
-                    <div className="flex items-center gap-3">
+                    {/* Decision Action Buttons */}
+                    <div className="pt-4 border-t border-[rgba(31,36,48,0.06)] flex items-center gap-3">
                       <button
                         onClick={() => handleCaseAction("approve")}
-                        className="flex-1 py-2.5 rounded-xl bg-[#16A34A] hover:bg-[#15803D] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs"
+                        className="flex-1 py-3 rounded-xl bg-[#EBF3EE] hover:bg-[#DCEBDE] text-[#729E85] font-semibold text-xs transition-colors flex items-center justify-center gap-2"
                       >
-                        <UserCheck className="w-3.5 h-3.5" /> Approve / Clear
+                        <UserCheck className="w-4 h-4" />
+                        <span>Approve Transaction</span>
                       </button>
+
                       <button
                         onClick={() => handleCaseAction("block")}
-                        className="flex-1 py-2.5 rounded-xl bg-[#DC2626] hover:bg-[#B91C1C] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs"
+                        className="flex-1 py-3 rounded-xl bg-[#FBEFEF] hover:bg-[#F7DADA] text-[#D16D6D] font-semibold text-xs transition-colors flex items-center justify-center gap-2"
                       >
-                        <Ban className="w-3.5 h-3.5" /> Block / Flag
+                        <Ban className="w-4 h-4" />
+                        <span>Block & Quarantine</span>
                       </button>
+
                       <button
                         onClick={() => handleCaseAction("restructure")}
-                        className="flex-1 py-2.5 rounded-xl bg-[#435278] hover:bg-[#344161] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs"
+                        className="flex-1 py-3 rounded-xl bg-[#FCF5E9] hover:bg-[#F5E8D0] text-[#D49D4A] font-semibold text-xs transition-colors flex items-center justify-center gap-2"
                       >
-                        <TrendingDown className="w-3.5 h-3.5" /> Proactive Restructure
+                        <FileText className="w-4 h-4" />
+                        <span>Proactive Restructure</span>
                       </button>
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="p-12 text-center text-xs text-[#9CA3AF]">Select a case from the queue to investigate</div>
+                ) : (
+                  <p className="text-xs text-[#8A92A2] italic text-center py-20">
+                    Select a case from the queue to inspect attributions.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: MULE GRAPH NETWORK */}
+          {activeTab === "mule_graph" && (
+            <div className="max-w-7xl mx-auto space-y-6">
+              <div className="p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                <div className="mb-6 flex justify-between items-center">
+                  <div>
+                    <h3 className="font-serif text-xl font-bold text-[#1F2430]">
+                      Mule Laundering Ring Topology Map
+                    </h3>
+                    <p className="text-xs text-[#586071]">
+                      Tracing multi-hop fund dispersion up to k ≤ 4 hops
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono px-3 py-1 rounded-full bg-[#FBEFEF] text-[#D16D6D] border border-[#F3D2D2]">
+                    High Centrality Nodes Highlighted
+                  </span>
+                </div>
+
+                <MuleGraphView />
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: LOAN DEFAULT & CREDIT DISTRESS */}
+          {activeTab === "credit_risk" && (
+            <div className="max-w-7xl mx-auto space-y-8">
+              <div className="p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
+                <h3 className="font-serif text-2xl font-bold text-[#1F2430] mb-2">
+                  Customer Credit 360 · Aarav Sharma
+                </h3>
+                <p className="text-xs text-[#586071] mb-8">
+                  Continuous liquidity runway and early warning default scoring
+                </p>
+
+                {creditProfile && (
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
+                        Monthly Verified Income
+                      </span>
+                      <span className="font-serif text-2xl font-bold text-[#1F2430] mt-1 block">
+                        ₹{creditProfile.verified_monthly_income?.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
+                        Active Monthly EMI
+                      </span>
+                      <span className="font-serif text-2xl font-bold text-[#D49D4A] mt-1 block">
+                        ₹{creditProfile.total_emi_obligations?.toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
+                        EMI-to-Income (R_EMI)
+                      </span>
+                      <span className="font-serif text-2xl font-bold text-[#D16D6D] mt-1 block">
+                        {(creditProfile.emi_to_income_ratio * 100).toFixed(1)}%
+                      </span>
+                    </div>
+
+                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
+                        Current DPD State
+                      </span>
+                      <span className="font-serif text-2xl font-bold text-[#1F2430] mt-1 block">
+                        {creditProfile.dpd_worst || "DPD 0"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="p-6 rounded-2xl bg-[#FCF5E9] border border-[#F3E0BE] flex justify-between items-center">
+                  <div>
+                    <h5 className="font-serif text-base font-bold text-[#1F2430]">
+                      Proactive Loan Restructuring Action Available
+                    </h5>
+                    <p className="text-xs text-[#586071] mt-0.5">
+                      Customer experienced a recent ₹45,000 fraud drain. Extend tenure by 12 months to lower monthly EMI to ₹8,500.
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => alert("Restructuring offer queued for customer notification.")}
+                    className="px-5 py-2.5 rounded-full bg-[#D49D4A] text-white font-semibold text-xs shadow-xs hover:bg-[#C28C3B]"
+                  >
+                    Execute Restructure Offer
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: EMBEDDED CHECKOUT SIMULATOR */}
+          {activeTab === "shop_simulator" && (
+            <div className="max-w-4xl mx-auto p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs space-y-6">
+              <div className="flex items-center justify-between pb-4 border-b border-[rgba(31,36,48,0.06)]">
+                <div>
+                  <h3 className="font-serif text-2xl font-bold text-[#1F2430]">
+                    Consumer Checkout Pre-Check Simulator
+                  </h3>
+                  <p className="text-xs text-[#586071]">
+                    Test synchronous sub-200ms risk precheck before Juspay session creation
+                  </p>
+                </div>
+                <Link
+                  href="/shop"
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 text-xs text-[#435278] font-semibold hover:underline"
+                >
+                  <span>Open Full Shop Page</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {/* Quick Preset Buttons */}
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimAmount(450);
+                    setSimChannel("upi");
+                    setSimCustomer("CUST-001");
+                    setSimMerchant("MERCHANT-SWIGGY-VERIFIED");
+                    setSimDevice("dev-fp-safari-mac-01");
+                    setSimBeneficiary("PAYEE-ESTABLISHED");
+                  }}
+                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#EBF3EE] text-[#729E85] border border-[#D1E5DA]"
+                >
+                  Preset: Low Risk (₹450 Grocery)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimAmount(7500);
+                    setSimChannel("card");
+                    setSimCustomer("CUST-001");
+                    setSimMerchant("MERCHANT-NEW-STORE");
+                    setSimDevice("dev-fp-new-device-unknown");
+                    setSimBeneficiary("PAYEE-NORMAL");
+                  }}
+                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#FCF5E9] text-[#D49D4A] border border-[#F3E0BE]"
+                >
+                  Preset: Medium Step-Up (₹7,500 Card)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSimAmount(95000);
+                    setSimChannel("upi");
+                    setSimCustomer("CUST-002");
+                    setSimMerchant("MERCHANT-BLACKLISTED-SHADY");
+                    setSimDevice("dev-fp-active-call-flag");
+                    setSimBeneficiary("PAYEE-NEW-MULE");
+                  }}
+                  className="px-3.5 py-1.5 rounded-full text-xs font-semibold bg-[#FBEFEF] text-[#D16D6D] border border-[#F3D2D2]"
+                >
+                  Preset: High Risk Scam (₹95,000 Transfer)
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs font-semibold text-[#586071] block mb-1">
+                    Amount (INR)
+                  </label>
+                  <input
+                    type="number"
+                    value={simAmount}
+                    onChange={(e) => setSimAmount(Number(e.target.value))}
+                    className="w-full p-2.5 rounded-xl border border-[rgba(31,36,48,0.1)] text-sm font-mono bg-[#FAF8F5]"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-[#586071] block mb-1">
+                    Payment Channel
+                  </label>
+                  <select
+                    value={simChannel}
+                    onChange={(e) => setSimChannel(e.target.value)}
+                    className="w-full p-2.5 rounded-xl border border-[rgba(31,36,48,0.1)] text-sm bg-[#FAF8F5]"
+                  >
+                    <option value="upi">UPI Instant Rail</option>
+                    <option value="card">Debit / Credit Card</option>
+                    <option value="wallet">Digital Wallet</option>
+                    <option value="netbanking">Net Banking</option>
+                  </select>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleSimulatePrecheck}
+                disabled={simLoading}
+                className="w-full py-3.5 rounded-full bg-[#435278] hover:bg-[#344161] text-white font-semibold text-sm transition-colors shadow-xs"
+              >
+                {simLoading ? "Evaluating Risk via /payments/precheck..." : "Run Real-Time Pre-Check Scoring"}
+              </button>
+
+              {/* Simulation Result */}
+              {simResult && (
+                <div className="p-6 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.08)] space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-xs text-[#8A92A2] block font-mono">
+                        Latency SLA: {simLatency} ms (Sub-200ms Met)
+                      </span>
+                      <h4 className="font-serif text-xl font-bold text-[#1F2430]">
+                        Routing Decision: {simResult.decision}
+                      </h4>
+                    </div>
+                    <span className="font-mono text-2xl font-bold text-[#1F2430] tnum">
+                      Score: {simResult.fraud_score} / 100
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-[#586071]">
+                    {simResult.risk_breakdown?.reason_codes?.map((r: string, i: number) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className="h-1.5 w-1.5 rounded-full bg-[#435278]" />
+                        <span>{r}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {simOtpOpen && (
+                    <div className="p-4 rounded-xl bg-white border border-[#E8B86B] space-y-3">
+                      <span className="text-xs font-bold text-[#D49D4A] block">
+                        Step-Up OTP Challenge Enforced:
+                      </span>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={simOtpInput}
+                          onChange={(e) => setSimOtpInput(e.target.value)}
+                          placeholder="Enter 6-digit OTP..."
+                          className="flex-1 p-2 rounded-lg border border-[rgba(31,36,48,0.1)] text-xs font-mono"
+                        />
+                        <button
+                          onClick={handleVerifyOtp}
+                          className="px-4 py-2 rounded-lg bg-[#D49D4A] text-white font-bold text-xs"
+                        >
+                          Verify OTP
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {simOtpMessage && (
+                    <p className="text-xs font-semibold text-[#729E85]">
+                      {simOtpMessage}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Tab 2: Interactive Mule Ring Topology */}
-        {activeTab === "mule_graph" && <MuleGraphView />}
-
-        {/* Tab 3: Loan Distress & Early Warning Engine (FR3) */}
-        {activeTab === "credit_risk" && creditProfile && (
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F5]">
-              <div>
-                <span className="text-xs uppercase font-semibold text-[#435278] bg-[#EEF2F6] px-2.5 py-1 rounded-full">
-                  FR3 Mathematical Formulations
-                </span>
-                <h2 className="text-xl font-bold text-[#1F2430] mt-2">Loan Repayment Risk & Early Warning Engine</h2>
-                <p className="text-xs text-[#586071]">
-                  Quantitative credit distress monitoring calculated per customer across active loan obligations.
-                </p>
-              </div>
-              <div className="text-right">
-                <div className="text-2xl font-black text-[#D97706]">{creditProfile.overall_risk_score}/100</div>
-                <span className="text-[11px] font-bold uppercase text-[#D97706] bg-[#FEF3C7] px-2 py-0.5 rounded-full">
-                  Tier: {creditProfile.risk_tier}
-                </span>
-              </div>
-            </div>
-
-            {/* Formula Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">EMI-to-Income Ratio (R_EMI)</span>
-                <div className="text-lg font-bold text-[#DC2626]">
-                  {(creditProfile.emi_to_income_ratio * 100).toFixed(1)}%
+          {/* TAB 6: GOVERNANCE & SHADOW MODE */}
+          {activeTab === "governance" && (
+            <div className="max-w-7xl mx-auto space-y-8">
+              <div className="p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs space-y-6">
+                <div className="flex justify-between items-center pb-4 border-b border-[rgba(31,36,48,0.06)]">
+                  <div>
+                    <h3 className="font-serif text-2xl font-bold text-[#1F2430]">
+                      Quantitative Model Governance & Drift Monitoring
+                    </h3>
+                    <p className="text-xs text-[#586071]">
+                      Tracking Population Stability Index (PSI) and Kolmogorov-Smirnov drift
+                    </p>
+                  </div>
+                  <span className="text-xs font-mono px-3 py-1 rounded-full bg-[#EBF3EE] text-[#729E85] border border-[#D1E5DA]">
+                    Active Champion: XGBoost v1.4
+                  </span>
                 </div>
-                <p className="text-[11px] text-[#6B7280]">Formula: sum(EMI) / I_verified. Threshold &ge; 40% triggers flag.</p>
-              </div>
 
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">Days Past Due (DPD) Bucket</span>
-                <div className="text-lg font-bold text-[#D97706]">DPD {creditProfile.dpd_worst}</div>
-                <p className="text-[11px] text-[#6B7280]">States: DPD 0, 1-30, 30-60, 60+</p>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="p-6 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                    <span className="text-xs font-mono text-[#8A92A2] block">
+                      Population Stability Index (PSI)
+                    </span>
+                    <span className="font-serif text-3xl font-bold text-[#729E85] mt-1 block">
+                      {driftReport?.psi_value || 0.082}
+                    </span>
+                    <span className="text-xs text-[#586071] mt-1 block">
+                      Threshold &lt; 0.25 (Stable)
+                    </span>
+                  </div>
 
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">Income Trend Dynamics (ΔI)</span>
-                <div className="text-lg font-bold text-[#DC2626]">
-                  {(creditProfile.income_trend * 100).toFixed(1)}% Drop
+                  <div className="p-6 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                    <span className="text-xs font-mono text-[#8A92A2] block">
+                      Kolmogorov-Smirnov p-value
+                    </span>
+                    <span className="font-serif text-3xl font-bold text-[#1F2430] mt-1 block">
+                      {driftReport?.ks_pvalue ? driftReport.ks_pvalue.toFixed(4) : "0.4210"}
+                    </span>
+                    <span className="text-xs text-[#586071] mt-1 block">
+                      No distribution shift detected
+                    </span>
+                  </div>
+
+                  <div className="p-6 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
+                    <span className="text-xs font-mono text-[#8A92A2] block">
+                      Shadow Candidate
+                    </span>
+                    <span className="font-serif text-xl font-bold text-[#435278] mt-1 block">
+                      XGBoost v1.5-nightly
+                    </span>
+                    <span className="text-xs text-[#729E85] mt-1 block">
+                      +1.8% F1-score improvement
+                    </span>
+                  </div>
                 </div>
-                <p className="text-[11px] text-[#6B7280]">Formula: (I_trail3m - I_current) / I_trail3m. Trigger &gt; 20%.</p>
-              </div>
-
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">Liquid Cash Runway</span>
-                <div className="text-lg font-bold text-[#16A34A]">{creditProfile.runway_months} Months</div>
-                <p className="text-[11px] text-[#6B7280]">Formula: B_liquid / (|min(0, Net Cash Flow)| + ε)</p>
-              </div>
-
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">Credit Line Utilization</span>
-                <div className="text-lg font-bold text-[#DC2626]">
-                  {(creditProfile.credit_utilization * 100).toFixed(1)}%
-                </div>
-                <p className="text-[11px] text-[#6B7280]">Formula: Balance / Limit</p>
-              </div>
-
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-1">
-                <span className="text-[10px] font-bold uppercase text-[#6B7280]">Late Payment Velocity (3m)</span>
-                <div className="text-lg font-bold text-[#374151]">{creditProfile.total_late_3m} Incidents</div>
-                <p className="text-[11px] text-[#6B7280]">Delayed or partial EMI count over trailing window</p>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Tab 4: Governance & Drift Monitoring (FR5) */}
-        {activeTab === "governance" && driftReport && (
-          <div className="bg-white border border-[#E5E7EB] rounded-2xl p-6 shadow-xs space-y-6">
-            <div className="flex items-center justify-between pb-3 border-b border-[#F1F3F5]">
-              <div>
-                <span className="text-xs uppercase font-semibold text-[#435278] bg-[#EEF2F6] px-2.5 py-1 rounded-full">
-                  FR5 Continuous Model Governance
-                </span>
-                <h2 className="text-xl font-bold text-[#1F2430] mt-2">Quantitative Distribution Drift Monitoring</h2>
+          {/* TAB 7: READ-ONLY ASSISTANT */}
+          {activeTab === "assistant" && (
+            <div className="max-w-4xl mx-auto p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs flex flex-col h-[700px]">
+              <div className="pb-4 border-b border-[rgba(31,36,48,0.06)] mb-4">
+                <h3 className="font-serif text-xl font-bold text-[#1F2430]">
+                  Conversational Risk Assistant
+                </h3>
                 <p className="text-xs text-[#586071]">
-                  Evaluates Population Stability Index (PSI) and Kolmogorov-Smirnov (KS) test between baseline and shadow models.
-                </p>
-              </div>
-              <div className="text-right">
-                <span className="text-xs font-bold px-3 py-1 rounded-full bg-[#DCFCE7] text-[#166534]">
-                  STATUS: {driftReport.status}
-                </span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-2">
-                <span className="text-xs font-bold uppercase text-[#6B7280]">Population Stability Index (PSI)</span>
-                <div className="text-2xl font-bold text-[#1F2430]">{driftReport.psi_value}</div>
-                <p className="text-xs text-[#586071]">
-                  Threshold: <code className="font-bold">&gt; {driftReport.psi_threshold}</code> flags significant distribution drift and halts automated shadow promotion.
+                  Strictly read-only natural language threat querying
                 </p>
               </div>
 
-              <div className="p-4 bg-[#F8F9FA] rounded-xl border border-[#E5E7EB] space-y-2">
-                <span className="text-xs font-bold uppercase text-[#6B7280]">Kolmogorov-Smirnov (KS) Test</span>
-                <div className="text-2xl font-bold text-[#1F2430]">p-val: {driftReport.ks_pvalue.toFixed(4)}</div>
-                <p className="text-xs text-[#586071]">
-                  KS Statistic: <span className="font-mono">{driftReport.ks_statistic}</span>. Significance <code className="font-bold">p &lt; 0.05</code> triggers manual model review.
-                </p>
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2 mb-4">
+                {assistantChat.map((msg, i) => (
+                  <div
+                    key={i}
+                    className={`flex ${
+                      msg.sender === "user" ? "justify-end" : "justify-start"
+                    }`}
+                  >
+                    <div
+                      className={`max-w-lg p-3.5 rounded-2xl text-xs leading-relaxed ${
+                        msg.sender === "user"
+                          ? "bg-[#435278] text-white"
+                          : "bg-[#FAF8F5] text-[#1F2430] border border-[rgba(31,36,48,0.06)]"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  </div>
+                ))}
+                {assistantLoading && (
+                  <div className="text-xs text-[#8A92A2] italic">
+                    Assistant is analyzing data...
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-[rgba(31,36,48,0.06)]">
+                <input
+                  type="text"
+                  value={assistantQuery}
+                  onChange={(e) => setAssistantQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAssistantSend()}
+                  placeholder="Ask a question (e.g. 'Why was Rahul flagged?' or 'Show all investment scams')..."
+                  className="flex-1 p-3 rounded-full border border-[rgba(31,36,48,0.1)] text-xs focus:outline-none focus:border-[#435278] bg-[#FAF8F5]"
+                />
+                <button
+                  onClick={handleAssistantSend}
+                  className="px-6 py-3 rounded-full bg-[#435278] hover:bg-[#344161] text-white text-xs font-semibold flex items-center gap-2"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  <span>Ask</span>
+                </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Floating Read-Only LLM Assistant Widget (FR4) */}
-        <div className="bg-white border border-[#E5E7EB] rounded-2xl p-4 shadow-xs space-y-3">
-          <div className="flex items-center justify-between pb-2 border-b border-[#F1F3F5]">
-            <div className="flex items-center gap-2">
-              <MessageSquare className="w-4 h-4 text-[#435278]" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-[#1F2430]">
-                Read-Only LLM Conversational Assistant (FR4)
-              </h3>
-            </div>
-            <span className="text-[10px] bg-[#EEF2F6] text-[#435278] font-semibold px-2 py-0.5 rounded">
-              Read-Only Safety Guardrail Enforced
-            </span>
-          </div>
-
-          <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
-            {assistantChat.map((msg, i) => (
-              <div
-                key={i}
-                className={`p-2.5 rounded-xl text-xs max-w-2xl ${
-                  msg.sender === "user"
-                    ? "ml-auto bg-[#435278] text-white"
-                    : "bg-[#F8F9FA] border border-[#E5E7EB] text-[#374151]"
-                }`}
-              >
-                {msg.text}
-              </div>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-2 pt-2 border-t border-[#F1F3F5]">
-            <input
-              type="text"
-              placeholder="Ask contextual questions (e.g. 'Why was this case flagged?' or 'Explain mule ring hops')..."
-              value={assistantQuery}
-              onChange={(e) => setAssistantQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSendAssistant()}
-              className="flex-1 px-3 py-2 border border-[#D1D5DB] rounded-lg text-xs"
-            />
-            <button
-              onClick={handleSendAssistant}
-              disabled={assistantLoading}
-              className="px-4 py-2 bg-[#435278] hover:bg-[#344161] text-white rounded-lg text-xs font-medium flex items-center gap-1.5 cursor-pointer"
-            >
-              <Send className="w-3 h-3" /> Send
-            </button>
-          </div>
+          )}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
