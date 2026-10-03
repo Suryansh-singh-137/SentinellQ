@@ -14,7 +14,7 @@ export const content = {
         { label: "Early Warning", href: "#credit" },
         { label: "Compliance", href: "#compliance" },
       ],
-      launchConsole: "Console",
+      launchConsole: "Dashboard",
       requestDemo: "Request Demo",
     },
     hero: {
@@ -25,7 +25,7 @@ export const content = {
       subhead:
         "The first dual-risk AI engine executing sub-200ms pre-checkout fraud interception alongside proactive, event-driven loan default early warning.",
       ctaPrimary: "Request Demo",
-      ctaSecondary: "Explore Live Console",
+      ctaSecondary: "Explore Dashboard",
       badgeText: "Sub-200ms Pre-Check Latency SLA",
       metrics: [
         { label: "Pre-check SLA", value: "<200ms" },
@@ -269,7 +269,7 @@ export const content = {
       subhead:
         "Schedule a technical walkthrough with our risk engineering team or explore the interactive developer sandbox.",
       primary: "Book a Technical Walkthrough",
-      secondary: "Explore Live Console"
+      secondary: "Explore Dashboard"
     },
     footer: {
       desc: "Enterprise dual-risk AI monitoring platform engineered for digital banks, UPI payment processors, and modern credit institutions.",
@@ -307,7 +307,7 @@ export const content = {
         { label: "पूर्व चेतावनी", href: "#credit" },
         { label: "अनुपालन", href: "#compliance" },
       ],
-      launchConsole: "कंसोल",
+      launchConsole: "डैशबोर्ड",
       requestDemo: "डेमो अनुरोध",
     },
     hero: {
@@ -318,7 +318,7 @@ export const content = {
       subhead:
         "पहला दोहरा-जोखिम एआई इंजन जो 200ms से कम समय में भुगतान पूर्व धोखाधड़ी रोकता है और सक्रिय रूप से ऋण चूक की पूर्व चेतावनी देता है।",
       ctaPrimary: "डेमो का अनुरोध करें",
-      ctaSecondary: "लाइव कंसोल देखें",
+      ctaSecondary: "डैशबोर्ड देखें",
       badgeText: "200ms से कम प्री-चेक लेटेंसी एसएलए",
       metrics: [
         { label: "प्री-चेक समय", value: "<200ms" },
@@ -555,7 +555,7 @@ export const content = {
       headlineItalic: "की गुणवत्ता सुरक्षित रखें।",
       subhead: "हमारी तकनीकी टीम के साथ एक वॉकथ्रू शेड्यूल करें या इंटरैक्टिव डेवलपर कंसोल देखें।",
       primary: "तकनीकी वॉकथ्रू बुक करें",
-      secondary: "लाइव कंसोल देखें"
+      secondary: "डैशबोर्ड देखें"
     },
     footer: {
       desc: "डिजिटल बैंकों, यूपीआई भुगतान प्रदाताओं और आधुनिक ऋण संस्थानों के लिए निर्मित उद्यम जोखिम एआई निगरानी मंच।",

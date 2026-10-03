@@ -18,6 +18,16 @@ export const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== "undefined") {
+    const token = localStorage.getItem("sentineliq_auth_token");
+    if (token && config.headers) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 export interface PrecheckPayload {
   customer_id: string;
   amount: number;
@@ -475,3 +485,74 @@ export async function getDriftMetrics() {
     };
   }
 }
+
+// ── Role-Based Authentication & User Session ────────────────
+export interface AuthUser {
+  id: string;
+  username: string;
+  email: string;
+  full_name: string;
+  role: "analyst" | "customer";
+  customer_id?: string | null;
+  permissions: string[];
+}
+
+export interface LoginResponseData {
+  access_token: string;
+  token_type: string;
+  user: AuthUser;
+}
+
+export interface DemoAccountInfo {
+  role: "analyst" | "customer";
+  username: string;
+  email: string;
+  password: string;
+  full_name: string;
+  description: string;
+}
+
+export async function loginApi(
+  email_or_username: string,
+  password: string,
+  role?: "analyst" | "customer"
+): Promise<LoginResponseData> {
+  const { data } = await apiClient.post<LoginResponseData>("/auth/login", {
+    email_or_username,
+    password,
+    role,
+  });
+  return data;
+}
+
+export async function getMeApi(): Promise<AuthUser> {
+  const { data } = await apiClient.get<AuthUser>("/auth/me");
+  return data;
+}
+
+export async function getDemoAccountsApi(): Promise<DemoAccountInfo[]> {
+  try {
+    const { data } = await apiClient.get<DemoAccountInfo[]>("/auth/demo-accounts");
+    return data;
+  } catch (e) {
+    return [
+      {
+        role: "analyst",
+        username: "analyst",
+        email: "analyst@sentineliq.ai",
+        password: "analyst123",
+        full_name: "Elena Vance (Lead Risk Analyst)",
+        description: "Full risk management console, case queue, and graph topology.",
+      },
+      {
+        role: "customer",
+        username: "customer",
+        email: "customer@sentineliq.ai",
+        password: "customer123",
+        full_name: "Aarav Sharma",
+        description: "Retail banking customer checkout simulator and account runway.",
+      },
+    ];
+  }
+}
+

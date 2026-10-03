@@ -3,10 +3,21 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { ArrowUpRight, Menu, X, Activity } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import {
+  ArrowUpRight,
+  Menu,
+  X,
+  Activity,
+  User,
+  ShoppingBag,
+  LogOut,
+  ShieldAlert,
+} from "lucide-react";
 
 export function Navbar() {
   const { lang, setLang, t } = useLanguage();
+  const { user, role, isAuthenticated, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
@@ -64,7 +75,7 @@ export function Navbar() {
             ))}
           </nav>
 
-          {/* Desktop Controls: Language Toggle, Console Link & CTA */}
+          {/* Desktop Controls: Language Toggle, Auth & Role CTA */}
           <div className="hidden sm:flex items-center gap-2 sm:gap-2.5 lg:gap-3 shrink-0 ml-auto lg:ml-0">
             {/* Language Switcher Pill */}
             <div className="inline-flex items-center p-0.5 rounded-full bg-[#FFFFFF] border border-[rgba(31,36,48,0.08)] shadow-2xs text-[11px] font-semibold text-[#586071]">
@@ -94,14 +105,55 @@ export function Navbar() {
               </button>
             </div>
 
-            {/* Launch Console Access */}
-            <Link
-              href="/analyst"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 hover:border-[rgba(31,36,48,0.25)] whitespace-nowrap"
-            >
-              <Activity className="w-3.5 h-3.5 text-[#8FB8A0]" />
-              <span>{t.nav.launchConsole}</span>
-            </Link>
+            {/* Authenticated State vs Sign In Link */}
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                {role === "customer" ? (
+                  <Link
+                    href="/shop"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 whitespace-nowrap"
+                  >
+                    <ShoppingBag className="w-3.5 h-3.5 text-[#8FB8A0]" />
+                    <span>Customer Shop</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href="/dashboard"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 whitespace-nowrap"
+                  >
+                    <Activity className="w-3.5 h-3.5 text-[#8FB8A0]" />
+                    <span>{t.nav.launchConsole}</span>
+                  </Link>
+                )}
+
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="p-1.5 text-[#586071] hover:text-[#D16D6D] rounded-full hover:bg-black/[0.04] transition-colors cursor-pointer"
+                  title="Sign Out"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Link
+                  href="/login"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 hover:border-[rgba(31,36,48,0.25)] whitespace-nowrap"
+                >
+                  <User className="w-3.5 h-3.5 text-[#435278]" />
+                  <span>Sign In</span>
+                </Link>
+
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 hover:border-[rgba(31,36,48,0.25)] whitespace-nowrap"
+                >
+                  <Activity className="w-3.5 h-3.5 text-[#8FB8A0]" />
+                  <span>{t.nav.launchConsole}</span>
+                </Link>
+              </div>
+            )}
 
             {/* Request Demo Primary CTA */}
             <a
@@ -158,14 +210,47 @@ export function Navbar() {
                 </a>
               ))}
               <div className="pt-3 mt-2 border-t border-[rgba(31,36,48,0.06)] flex flex-col gap-2">
+                {!isAuthenticated ? (
+                  <Link
+                    href="/login"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white border border-[rgba(31,36,48,0.1)] text-[#1F2430] font-medium text-xs shadow-2xs"
+                  >
+                    <User className="w-3.5 h-3.5 text-[#435278]" />
+                    <span>Sign In (Analyst / Customer)</span>
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      logout();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white border border-[rgba(31,36,48,0.1)] text-[#D16D6D] font-medium text-xs shadow-2xs cursor-pointer"
+                  >
+                    <LogOut className="w-3.5 h-3.5" />
+                    <span>Sign Out ({user?.full_name})</span>
+                  </button>
+                )}
+
                 <Link
-                  href="/analyst"
+                  href="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white border border-[rgba(31,36,48,0.1)] text-[#1F2430] font-medium text-xs shadow-2xs"
                 >
                   <Activity className="w-3.5 h-3.5 text-[#8FB8A0]" />
                   <span>{t.nav.launchConsole}</span>
                 </Link>
+
+                <Link
+                  href="/shop"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white border border-[rgba(31,36,48,0.1)] text-[#435278] font-medium text-xs shadow-2xs"
+                >
+                  <ShoppingBag className="w-3.5 h-3.5 text-[#8FB8A0]" />
+                  <span>Customer Shop Simulator</span>
+                </Link>
+
                 <a
                   href="#contact"
                   onClick={() => setMobileMenuOpen(false)}
@@ -182,3 +267,4 @@ export function Navbar() {
     </header>
   );
 }
+
