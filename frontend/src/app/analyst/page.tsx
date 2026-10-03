@@ -1016,10 +1016,10 @@ export default function AnalystDashboardPage() {
                     }`}
                   >
                     <div
-                      className={`max-w-lg p-3.5 rounded-2xl text-xs leading-relaxed ${
+                      className={`max-w-xl p-4 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap shadow-xs ${
                         msg.sender === "user"
                           ? "bg-[#435278] text-white"
-                          : "bg-[#FAF8F5] text-[#1F2430] border border-[rgba(31,36,48,0.06)]"
+                          : "bg-[#FAF8F5] text-[#1F2430] border border-[rgba(31,36,48,0.08)]"
                       }`}
                     >
                       {msg.text}
@@ -1027,10 +1027,34 @@ export default function AnalystDashboardPage() {
                   </div>
                 ))}
                 {assistantLoading && (
-                  <div className="text-xs text-[#8A92A2] italic">
-                    Assistant is analyzing data...
+                  <div className="text-xs text-[#8A92A2] italic flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#435278] animate-pulse" />
+                    SentinelIQ Copilot is evaluating risk intelligence...
                   </div>
                 )}
+              </div>
+
+              {/* Quick Prompt Suggestion Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 pb-2">
+                <span className="text-[10px] font-semibold text-[#8A92A2] uppercase mr-1">Try:</span>
+                {[
+                  "Is Rahul safe to transact with?",
+                  "And Zepto?",
+                  "Why was Aarav flagged?",
+                  "Show Mule Ring topology",
+                  "Explain Loan Distress metrics",
+                ].map((prompt, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setAssistantQuery(prompt);
+                    }}
+                    className="text-[11px] px-2.5 py-1 rounded-full bg-[#FAF8F5] hover:bg-[#EEF2F6] text-[#435278] border border-[rgba(31,36,48,0.08)] transition-colors cursor-pointer"
+                  >
+                    {prompt}
+                  </button>
+                ))}
               </div>
 
               <div className="flex gap-2 pt-2 border-t border-[rgba(31,36,48,0.06)]">
@@ -1039,12 +1063,12 @@ export default function AnalystDashboardPage() {
                   value={assistantQuery}
                   onChange={(e) => setAssistantQuery(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleAssistantSend()}
-                  placeholder="Ask a question (e.g. 'Why was Rahul flagged?' or 'Show all investment scams')..."
+                  placeholder="Ask a question (e.g. 'Is Rahul safe to transact with?' or 'Check Zepto')..."
                   className="flex-1 p-3 rounded-full border border-[rgba(31,36,48,0.1)] text-xs focus:outline-none focus:border-[#435278] bg-[#FAF8F5]"
                 />
                 <button
                   onClick={handleAssistantSend}
-                  className="px-6 py-3 rounded-full bg-[#435278] hover:bg-[#344161] text-white text-xs font-semibold flex items-center gap-2"
+                  className="px-6 py-3 rounded-full bg-[#435278] hover:bg-[#344161] text-white text-xs font-semibold flex items-center gap-2 cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5" />
                   <span>Ask</span>
