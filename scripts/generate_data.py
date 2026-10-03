@@ -23,6 +23,18 @@ from faker import Faker
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_GENERATED_DIR = os.path.join(BASE_DIR, "data", "generated")
 
+# Ensure the scripts directory is in sys.path so modules can be imported anywhere
+SCRIPTS_DIR = os.path.dirname(os.path.abspath(__file__))
+if SCRIPTS_DIR not in sys.path:
+    sys.path.insert(0, SCRIPTS_DIR)
+
+try:
+    from scam_injectors import inject_scam_patterns
+    from loan_trajectories import generate_loan_trajectories
+except ImportError:
+    from scripts.scam_injectors import inject_scam_patterns
+    from scripts.loan_trajectories import generate_loan_trajectories
+
 # Initialize Faker with Indian locale for Consilium'26 relevance
 fake = Faker('en_IN')
 
@@ -74,97 +86,94 @@ def generate_sentineliq_dataset(
         })
     df_merchants = pd.DataFrame(merchants)
 
-    # 3. Loans, Repayments & Early Warning Trajectories Table
-    print("Generating Loan Portfolios and Repayment Risk...")
-    loans = []
-    for cust in customers:
-        if random.random() < 0.35:  # ~35% of customers hold loans
-            income = cust["monthly_income"]
-            emi = round(random.uniform(0.1, 0.6) * income, 2)
-            emi_to_income = round(emi / income, 2)
-
-            # Inject Borrower Distress Trajectories
-            dpd_bucket = random.choice([0, 0, random.randint(1, 30), random.randint(30, 60), random.randint(60, 90)])
-            is_distressed = emi_to_income > 0.45 or dpd_bucket > 30
-
-            loans.append({
-                "loan_id": fake.uuid4(),
-                "customer_id": cust["customer_id"],
-                "principal": round(random.uniform(50000, 1500000), 2),
-                "outstanding_balance": round(random.uniform(10000, 1400000), 2),
-                "emi": emi,
-                "emi_to_income_ratio": emi_to_income,
-                "dpd_bucket": dpd_bucket,
-                "late_payment_count": random.randint(1, 4) if is_distressed else 0,
-                "income_trend_drop_pct": round(random.uniform(15, 50), 2) if is_distressed else 0.0,
-                "spending_spike_flag": is_distressed and random.random() > 0.5,
-                "debt_stress_flag": is_distressed,
-                "recent_scam_loss_flag": random.random() < 0.05,
-                "status": "Stressed" if is_distressed else "Healthy",
-            })
-    df_loans = pd.DataFrame(loans)
-
-    # 4. Multi-Channel Transactions & Scam Scenarios Table
-    print(f"Generating {num_transactions:,} Transactions & Scam Injections...")
+    # 3. Multi-Channel Transactions (Base Generation)
+    print(f"Generating {num_transactions:,} Base Transactions...")
     transactions = []
     channels = ["UPI", "wallet", "card", "net banking", "cash_atm", "cash_agent"]
-    scam_types = ["Impersonation", "Phishing", "Fake Refund", "Investment", "Mule Account", "Payment-Request"]
 
     cust_ids = df_customers['customer_id'].tolist()
     merch_ids = df_merchants['merchant_id'].tolist()
 
     for _ in range(num_transactions):
-        is_fraud = random.random() < fraud_rate
-        channel = random.choice(channels)
-        scam_type = random.choice(scam_types) if is_fraud else "None"
-
         tx = {
             "transaction_id": fake.uuid4(),
             "customer_id": random.choice(cust_ids),
             "merchant_id": random.choice(merch_ids) if random.random() > 0.2 else None,
-            "channel": channel,
+            "channel": random.choice(channels),
             "amount": round(random.uniform(50, 25000), 2),
             "timestamp": fake.date_time_between(start_date="-6m", end_date="now"),
             "is_synthetic": True,
-            "fraud_score": random.randint(85, 100) if is_fraud else random.randint(0, 40),
-            "scam_type": scam_type,
             "juspay_order_id": fake.uuid4(),
         }
-
-        # Apply specific scenario logic to match SentinelIQ anomaly engine
-        if is_fraud:
-            if scam_type == "Investment":
-                tx["amount"] = tx["amount"] * random.uniform(3, 8)  # Escalating amounts
-            elif scam_type == "Mule Account":
-                tx["channel"] = random.choice(["UPI", "cash_agent"])  # Rapid fan-in / cash-out
-            elif scam_type == "Phishing":
-                tx["channel"] = "net banking"
-            elif scam_type == "Payment-Request":
-                tx["channel"] = "UPI"
-
         transactions.append(tx)
 
     df_transactions = pd.DataFrame(transactions)
+    
+    # 4. Inject Complex Scam Archetypes
+    print(f"Injecting 6 Scam Archetypes at {fraud_rate*100:.2f}% Baseline Rate...")
+    df_transactions = inject_scam_patterns(df_transactions, df_customers, fraud_rate)
+    
+    # 5. Loan Portfolios, Repayments & Early Warning Trajectories
+    print("Generating Loan Portfolios and Repayment Risk...")
+    loan_datasets = generate_loan_trajectories(df_customers, df_transactions)
+
     print("Engine generation complete.")
 
-    return {
+    final_datasets = {
         "customers": df_customers,
         "merchants": df_merchants,
-        "loans": df_loans,
         "transactions": df_transactions,
     }
+    
+    # Merge all generated loan datasets into the final output
+    final_datasets.update(loan_datasets)
 
+    return final_datasets
+
+
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="SentinelIQ Synthetic Financial Data Generator")
+    parser.add_argument("--customers", type=int, default=NUM_CUSTOMERS, help=f"Number of synthetic customers to generate (default: {NUM_CUSTOMERS})")
+    parser.add_argument("--merchants", type=int, default=NUM_MERCHANTS, help=f"Number of synthetic merchants to generate (default: {NUM_MERCHANTS})")
+    parser.add_argument("--transactions", type=int, default=NUM_TRANSACTIONS, help=f"Number of transactions to generate (default: {NUM_TRANSACTIONS})")
+    parser.add_argument("--fraud-rate", type=float, default=FRAUD_RATE, help=f"Baseline fraud rate (default: {FRAUD_RATE})")
+    parser.add_argument("--output-dir", type=str, default=None, help="Directory to save generated datasets")
+    parser.add_argument("--export-all", action="store_true", help="Export all tables instead of only transactions")
+    return parser.parse_args()
 
 if __name__ == "__main__":
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
 
+    args = parse_args()
+    print("=" * 60)
+    print("Initializing SentinelIQ Synthetic Data Generation Pipeline")
+    print(f"  Customers:    {args.customers:,}")
+    print(f"  Merchants:    {args.merchants:,}")
+    print(f"  Transactions: {args.transactions:,}")
+    print(f"  Fraud Rate:   {args.fraud_rate * 100:.2f}%")
+    print("=" * 60)
+
     # Ensure target output directory exists in the repo
-    os.makedirs(DATA_GENERATED_DIR, exist_ok=True)
-    output_file = os.path.join(DATA_GENERATED_DIR, "sentineliq_transactions.csv")
+    output_dir = args.output_dir if args.output_dir else DATA_GENERATED_DIR
+    os.makedirs(output_dir, exist_ok=True)
+    
+    datasets = generate_sentineliq_dataset(
+        num_customers=args.customers,
+        num_merchants=args.merchants,
+        num_transactions=args.transactions,
+        fraud_rate=args.fraud_rate,
+    )
 
-    datasets = generate_sentineliq_dataset()
-
-    print(f"Saving transactions to {output_file}...")
-    datasets["transactions"].to_csv(output_file, index=False)
-    print(f"[OK] Saved {len(datasets['transactions']):,} transactions to {output_file}")
+    if args.export_all:
+        for name, df in datasets.items():
+            out_path = os.path.join(output_dir, f"sentineliq_{name}.csv")
+            df.to_csv(out_path, index=False)
+            print(f"[OK] Saved {name} ({len(df):,} records) to {out_path}")
+    else:
+        output_file = os.path.join(output_dir, "sentineliq_transactions.csv")
+        print(f"Saving transactions to {output_file}...")
+        datasets["transactions"].to_csv(output_file, index=False)
+        print(f"[OK] Saved {len(datasets['transactions']):,} transactions to {output_file}")

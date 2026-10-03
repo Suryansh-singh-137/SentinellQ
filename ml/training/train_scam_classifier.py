@@ -68,12 +68,44 @@ def load_dataset(data_path: str = None) -> pd.DataFrame:
         "merchant_risk_score": np.random.uniform(0.0, 1.0, size=n_samples),
         "in_degree_centrality": np.random.beta(a=0.5, b=5.0, size=n_samples),
         "pagerank_score": np.random.beta(a=0.5, b=10.0, size=n_samples),
-        "scam_label": np.random.choice([0, 1, 2, 3, 4, 5, 6], size=n_samples, p=[0.90, 0.02, 0.02, 0.015, 0.015, 0.015, 0.015])
+        "scam_label": np.random.choice([0, 1, 2, 3, 4, 5, 6], size=n_samples, p=[0.70, 0.05, 0.05, 0.05, 0.05, 0.05, 0.05])
     })
+
+    # Correlate features based on archetype signatures
+    mask_imp = df["scam_label"] == 1
+    df.loc[mask_imp, "is_voice_call_active"] = 1
+    df.loc[mask_imp, "beneficiary_age_minutes"] = np.random.uniform(1, 15, size=mask_imp.sum())
+    df.loc[mask_imp, "amount_to_avg_ratio"] = np.random.uniform(4.0, 10.0, size=mask_imp.sum())
+
+    mask_phish = df["scam_label"] == 2
+    df.loc[mask_phish, "device_switch_flag"] = 1
+    df.loc[mask_phish, "merchant_risk_score"] = np.random.uniform(0.8, 1.0, size=mask_phish.sum())
+
+    mask_refund = df["scam_label"] == 3
+    df.loc[mask_refund, "recent_small_credit_inflow"] = 1
+    df.loc[mask_refund, "is_unlinked_collect_req"] = 1
+
+    mask_invest = df["scam_label"] == 4
+    df.loc[mask_invest, "amount_to_avg_ratio"] = np.random.uniform(3.0, 8.0, size=mask_invest.sum())
+    df.loc[mask_invest, "velocity_1h"] = np.random.randint(5, 15, size=mask_invest.sum())
+
+    mask_mule = df["scam_label"] == 5
+    df.loc[mask_mule, "in_degree_centrality"] = np.random.uniform(0.1, 0.4, size=mask_mule.sum())
+    df.loc[mask_mule, "pagerank_score"] = np.random.uniform(0.05, 0.25, size=mask_mule.sum())
+    df.loc[mask_mule, "velocity_1m"] = np.random.randint(3, 8, size=mask_mule.sum())
+
+    mask_payreq = df["scam_label"] == 6
+    df.loc[mask_payreq, "is_unlinked_collect_req"] = 1
+    df.loc[mask_payreq, "velocity_1h"] = 0
+
     return df
 
 
-def train_scam_model(output_dir: str = "../models"):
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+
+
+def train_scam_model(output_dir: str = MODELS_DIR):
     """Trains, evaluates, and exports the XGBoost scam classifier."""
     print("Loading transaction dataset...")
     df = load_dataset()

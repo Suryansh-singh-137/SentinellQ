@@ -38,7 +38,11 @@ class TransactionAutoencoder(nn.Module):
         return decoded
 
 
-def train_isolation_forest(output_dir: str = "../models"):
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+MODELS_DIR = os.path.join(BASE_DIR, "models")
+
+
+def train_isolation_forest(output_dir: str = MODELS_DIR):
     """Trains and exports baseline Isolation Forest."""
     print("Training Isolation Forest Anomaly Detector...")
     np.random.seed(42)
@@ -61,7 +65,7 @@ def train_isolation_forest(output_dir: str = "../models"):
     return iso_forest
 
 
-def train_autoencoder(output_dir: str = "../models", epochs: int = 10):
+def train_autoencoder(output_dir: str = MODELS_DIR, epochs: int = 10):
     """Trains and exports PyTorch Autoencoder."""
     print(f"Training PyTorch Autoencoder ({epochs} epochs)...")
     np.random.seed(42)

@@ -116,6 +116,17 @@ export interface CustomerCreditProfile {
   runway_months: number;
   overall_risk_score: number;
   risk_tier: string;
+  // Extended UI-facing fields
+  customer_name?: string;
+  stage?: "Healthy" | "Watch" | "Stressed" | "Default-risk";
+  late_payment_count?: number;
+  net_cash_flow?: number;
+  repayment_score?: number;
+  cash_runway_months?: number;
+  credit_utilization_pct?: number;
+  spending_spike_flag?: boolean;
+  recent_scam_loss_flag?: boolean;
+  total_scam_loss?: number;
 }
 
 // ── Built-in Fallback Data ──────────────────────────────────
@@ -217,21 +228,49 @@ const FALLBACK_MULE_GRAPH: MuleGraphResponse = {
   ],
 };
 
-const FALLBACK_CREDIT: CustomerCreditProfile = {
-  customer_id: "CUST-001",
-  verified_monthly_income: 85000.0,
-  total_emi_obligations: 38500.0,
-  emi_to_income_ratio: 0.453,
-  dpd_worst: "30-60",
-  total_late_3m: 2,
-  income_trend: 0.224,
-  spending_spike: 1.35,
-  credit_utilization: 0.835,
-  liquid_balance: 14500.0,
-  runway_months: 2.1,
-  overall_risk_score: 74.5,
-  risk_tier: "stressed",
+const FALLBACK_CREDIT_MAP: Record<string, CustomerCreditProfile> = {
+  "CUST-001": {
+    customer_id: "CUST-001", customer_name: "Aarav Sharma", stage: "Stressed",
+    verified_monthly_income: 85000, total_emi_obligations: 38500,
+    emi_to_income_ratio: 0.453, dpd_worst: "30-60", total_late_3m: 2,
+    income_trend: -0.224, spending_spike: 1.35, credit_utilization: 0.835,
+    liquid_balance: 14500, runway_months: 2.1, overall_risk_score: 74.5,
+    risk_tier: "stressed", late_payment_count: 4, net_cash_flow: -3200,
+    repayment_score: 52, cash_runway_months: 2.1, credit_utilization_pct: 83.5,
+    spending_spike_flag: true, recent_scam_loss_flag: true, total_scam_loss: 45000,
+  },
+  "CUST-002": {
+    customer_id: "CUST-002", customer_name: "Priya Nair", stage: "Default-risk",
+    verified_monthly_income: 62000, total_emi_obligations: 34000,
+    emi_to_income_ratio: 0.548, dpd_worst: "60+", total_late_3m: 5,
+    income_trend: -0.31, spending_spike: 1.72, credit_utilization: 0.91,
+    liquid_balance: 6200, runway_months: 0.9, overall_risk_score: 89.0,
+    risk_tier: "default-risk", late_payment_count: 6, net_cash_flow: -8500,
+    repayment_score: 28, cash_runway_months: 0.9, credit_utilization_pct: 91,
+    spending_spike_flag: true, recent_scam_loss_flag: false, total_scam_loss: 0,
+  },
+  "CUST-003": {
+    customer_id: "CUST-003", customer_name: "Rohan Mehta", stage: "Watch",
+    verified_monthly_income: 110000, total_emi_obligations: 42000,
+    emi_to_income_ratio: 0.381, dpd_worst: "1-30", total_late_3m: 1,
+    income_trend: -0.08, spending_spike: 1.15, credit_utilization: 0.64,
+    liquid_balance: 32000, runway_months: 4.5, overall_risk_score: 48.0,
+    risk_tier: "watch", late_payment_count: 1, net_cash_flow: 5200,
+    repayment_score: 68, cash_runway_months: 4.5, credit_utilization_pct: 64,
+    spending_spike_flag: false, recent_scam_loss_flag: false, total_scam_loss: 0,
+  },
+  "CUST-004": {
+    customer_id: "CUST-004", customer_name: "Anjali Rao", stage: "Healthy",
+    verified_monthly_income: 145000, total_emi_obligations: 28000,
+    emi_to_income_ratio: 0.193, dpd_worst: "0", total_late_3m: 0,
+    income_trend: 0.12, spending_spike: 0.95, credit_utilization: 0.38,
+    liquid_balance: 89000, runway_months: 12.4, overall_risk_score: 18.0,
+    risk_tier: "healthy", late_payment_count: 0, net_cash_flow: 24800,
+    repayment_score: 92, cash_runway_months: 12.4, credit_utilization_pct: 38,
+    spending_spike_flag: false, recent_scam_loss_flag: false, total_scam_loss: 0,
+  },
 };
+const FALLBACK_CREDIT = FALLBACK_CREDIT_MAP["CUST-001"];
 
 // ── API Operations with Resilient Fallbacks ─────────────────
 
@@ -373,7 +412,8 @@ export async function getLoanCreditProfile(customerId: string): Promise<Customer
     const { data } = await apiClient.get<CustomerCreditProfile>(`/loans/${customerId}/credit-profile`);
     return data;
   } catch (err) {
-    return FALLBACK_CREDIT;
+    // Return per-customer fallback if available, otherwise CUST-001 baseline
+    return FALLBACK_CREDIT_MAP[customerId] ?? FALLBACK_CREDIT;
   }
 }
 

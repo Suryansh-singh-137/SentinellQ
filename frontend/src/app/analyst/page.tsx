@@ -31,48 +31,19 @@ import {
   getCases,
   getCaseDetail,
   actOnCase,
-  getLoanCreditProfile,
   queryAssistant,
   getDriftMetrics,
   precheckPayment,
   confirmStepUp,
   CaseListItem,
   CaseDetail,
-  CustomerCreditProfile,
   PrecheckResponse,
   WS_BASE_URL,
 } from "@/lib/api";
 import { MuleGraphView } from "@/components/analyst/MuleGraphView";
+import { OverviewTab } from "@/components/analyst/OverviewTab";
+import { CreditRiskTab } from "@/components/analyst/CreditRiskTab";
 import { AppSidebar, DashboardTab } from "@/components/dashboard/AppSidebar";
-import {
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  Cell
-} from "recharts";
-
-// Sample telemetry for charts
-const scamTrendData = [
-  { time: "09:00", impersonation: 4, mule: 2, phishing: 1 },
-  { time: "11:00", impersonation: 8, mule: 5, phishing: 3 },
-  { time: "13:00", impersonation: 14, mule: 9, phishing: 6 },
-  { time: "15:00", impersonation: 9, mule: 12, phishing: 4 },
-  { time: "17:00", impersonation: 18, mule: 15, phishing: 8 },
-  { time: "19:00", impersonation: 12, mule: 8, phishing: 5 },
-  { time: "21:00", impersonation: 6, mule: 4, phishing: 2 },
-];
-
-const tierVolumeData = [
-  { name: "Low (Auto-Approved)", count: 970, color: "#8FB8A0" },
-  { name: "Medium (Step-Up OTP)", count: 25, color: "#E8B86B" },
-  { name: "High (Session Blocked)", count: 5, color: "#E58F8F" },
-];
 
 export default function AnalystDashboardPage() {
   const [activeTab, setActiveTab] = useState<DashboardTab>("overview");
@@ -88,11 +59,9 @@ export default function AnalystDashboardPage() {
   const [alerts, setAlerts] = useState<any[]>([]);
   const [wsConnected, setWsConnected] = useState<boolean>(false);
 
-  // Credit Profile State
-  const [creditProfile, setCreditProfile] = useState<CustomerCreditProfile | null>(null);
-
   // Drift Metrics State
   const [driftReport, setDriftReport] = useState<any>(null);
+
 
   // Read-Only LLM Assistant State
   const [assistantQuery, setAssistantQuery] = useState<string>("");
@@ -120,7 +89,6 @@ export default function AnalystDashboardPage() {
 
   useEffect(() => {
     loadCases();
-    loadCreditProfile();
     loadDrift();
     initWebSocket();
   }, []);
@@ -149,14 +117,7 @@ export default function AnalystDashboardPage() {
     }
   };
 
-  const loadCreditProfile = async () => {
-    try {
-      const data = await getLoanCreditProfile("CUST-001");
-      setCreditProfile(data);
-    } catch (e) {
-      console.error("Failed to load credit profile:", e);
-    }
-  };
+
 
   const loadDrift = async () => {
     try {
@@ -296,7 +257,6 @@ export default function AnalystDashboardPage() {
             <button
               onClick={() => {
                 loadCases();
-                loadCreditProfile();
                 loadDrift();
               }}
               className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[rgba(31,36,48,0.08)] text-xs font-semibold text-[#1F2430] transition-colors"
@@ -309,174 +269,13 @@ export default function AnalystDashboardPage() {
 
         {/* Tab View Canvas */}
         <div className="flex-1 overflow-y-auto p-8">
-          {/* TAB 1: OVERVIEW & SYSTEM PULSE */}
           {activeTab === "overview" && (
-            <div className="space-y-8 max-w-7xl mx-auto">
-              {/* Top Metric Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
-                    <span className="font-semibold uppercase tracking-wider">Automated Handling</span>
-                    <Zap className="w-4 h-4 text-[#8FB8A0]" />
-                  </div>
-                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">99.52%</div>
-                  <div className="text-xs text-[#729E85] font-medium mt-1 flex items-center gap-1">
-                    <TrendingUp className="w-3 h-3" />
-                    <span>Target &gt; 99.5% Met</span>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
-                    <span className="font-semibold uppercase tracking-wider">Pre-Check SLA</span>
-                    <Clock className="w-4 h-4 text-[#E8B86B]" />
-                  </div>
-                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">142 ms</div>
-                  <div className="text-xs text-[#729E85] font-medium mt-1 flex items-center gap-1">
-                    <span>Deterministic &lt; 200ms</span>
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
-                    <span className="font-semibold uppercase tracking-wider">Active Held Cases</span>
-                    <ShieldAlert className="w-4 h-4 text-[#D16D6D]" />
-                  </div>
-                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">
-                    {cases.filter((c) => c.status === "Open").length}
-                  </div>
-                  <div className="text-xs text-[#D16D6D] font-medium mt-1">
-                    Priority-ranked Queue
-                  </div>
-                </div>
-
-                <div className="p-6 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                  <div className="flex items-center justify-between text-xs text-[#8A92A2] mb-2">
-                    <span className="font-semibold uppercase tracking-wider">Scams Prevented (Mo)</span>
-                    <CheckCircle2 className="w-4 h-4 text-[#8FB8A0]" />
-                  </div>
-                  <div className="font-serif text-3xl font-bold text-[#1F2430] tnum">₹2.45 Cr</div>
-                  <div className="text-xs text-[#586071] font-medium mt-1">
-                    Direct Downstream Protection
-                  </div>
-                </div>
-              </div>
-
-              {/* Charts Section */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                {/* Trailing Scam Trends Area Chart */}
-                <div className="lg:col-span-8 p-7 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h3 className="font-serif text-lg font-bold text-[#1F2430]">
-                        Real-Time Scam Interception Pulse
-                      </h3>
-                      <p className="text-xs text-[#586071]">
-                        Hourly detected scam patterns across UPI and card channels
-                      </p>
-                    </div>
-                    <span className="text-xs font-mono text-[#8A92A2]">Trailing 24h</span>
-                  </div>
-
-                  <div className="h-64 w-full">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={scamTrendData}>
-                        <defs>
-                          <linearGradient id="colorImpersonation" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#E58F8F" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#E58F8F" stopOpacity={0} />
-                          </linearGradient>
-                          <linearGradient id="colorMule" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#E8B86B" stopOpacity={0.4} />
-                            <stop offset="95%" stopColor="#E8B86B" stopOpacity={0} />
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#F0ECE1" />
-                        <XAxis dataKey="time" stroke="#8A92A2" fontSize={11} />
-                        <YAxis stroke="#8A92A2" fontSize={11} />
-                        <Tooltip
-                          contentStyle={{
-                            backgroundColor: "rgba(255, 255, 255, 0.95)",
-                            borderRadius: "16px",
-                            border: "1px solid rgba(31, 36, 48, 0.08)",
-                            boxShadow: "0 8px 24px rgba(31, 36, 48, 0.08)",
-                            fontSize: "12px",
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="impersonation"
-                          stroke="#D16D6D"
-                          fillOpacity={1}
-                          fill="url(#colorImpersonation)"
-                          name="Impersonation Scams"
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="mule"
-                          stroke="#D49D4A"
-                          fillOpacity={1}
-                          fill="url(#colorMule)"
-                          name="Mule Account Hops"
-                        />
-                      </AreaChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Live WebSocket Alerts Ticker */}
-                <div className="lg:col-span-4 p-7 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs flex flex-col justify-between">
-                  <div>
-                    <div className="flex items-center justify-between pb-4 border-b border-[rgba(31,36,48,0.06)] mb-4">
-                      <div className="flex items-center gap-2">
-                        <Radio className="w-4 h-4 text-[#D16D6D] animate-pulse" />
-                        <h4 className="font-serif text-base font-bold text-[#1F2430]">
-                          Live Threat Push (/ws/alerts)
-                        </h4>
-                      </div>
-                      <span className="text-[10px] font-mono text-[#729E85]">
-                        {wsConnected ? "STREAM ACTIVE" : "OFFLINE"}
-                      </span>
-                    </div>
-
-                    <div className="space-y-3 max-h-56 overflow-y-auto pr-1">
-                      {alerts.length === 0 ? (
-                        <p className="text-xs text-[#8A92A2] italic text-center py-8">
-                          No recent broadcast events. Streaming live...
-                        </p>
-                      ) : (
-                        alerts.map((al, idx) => (
-                          <div
-                            key={idx}
-                            className="p-3 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)] text-xs space-y-1"
-                          >
-                            <div className="flex justify-between items-center">
-                              <span className="font-bold text-[#D16D6D] uppercase text-[10px]">
-                                {al.event || "HIGH_RISK_HOLD"}
-                              </span>
-                              <span className="font-mono text-[#8A92A2] text-[10px]">
-                                {al.timestamp ? new Date(al.timestamp).toLocaleTimeString() : "Just now"}
-                              </span>
-                            </div>
-                            <div className="flex justify-between font-medium text-[#1F2430]">
-                              <span>{al.customer_name || "Flagged Customer"}</span>
-                              <span className="font-mono">₹{al.amount?.toLocaleString() || "45,000"}</span>
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setActiveTab("queue")}
-                    className="w-full mt-4 py-2.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[rgba(31,36,48,0.08)] text-xs font-semibold text-[#1F2430] text-center"
-                  >
-                    View All Queued Incidents
-                  </button>
-                </div>
-              </div>
-            </div>
+            <OverviewTab
+              cases={cases}
+              alerts={alerts}
+              wsConnected={wsConnected}
+              onNavigateToQueue={() => setActiveTab("queue")}
+            />
           )}
 
           {/* TAB 2: INCIDENT INVESTIGATION QUEUE */}
@@ -702,73 +501,7 @@ export default function AnalystDashboardPage() {
 
           {/* TAB 4: LOAN DEFAULT & CREDIT DISTRESS */}
           {activeTab === "credit_risk" && (
-            <div className="max-w-7xl mx-auto space-y-8">
-              <div className="p-8 rounded-3xl bg-white border border-[rgba(31,36,48,0.08)] shadow-xs">
-                <h3 className="font-serif text-2xl font-bold text-[#1F2430] mb-2">
-                  Customer Credit 360 · Aarav Sharma
-                </h3>
-                <p className="text-xs text-[#586071] mb-8">
-                  Continuous liquidity runway and early warning default scoring
-                </p>
-
-                {creditProfile && (
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
-                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
-                        Monthly Verified Income
-                      </span>
-                      <span className="font-serif text-2xl font-bold text-[#1F2430] mt-1 block">
-                        ₹{creditProfile.verified_monthly_income?.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
-                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
-                        Active Monthly EMI
-                      </span>
-                      <span className="font-serif text-2xl font-bold text-[#D49D4A] mt-1 block">
-                        ₹{creditProfile.total_emi_obligations?.toLocaleString()}
-                      </span>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
-                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
-                        EMI-to-Income (R_EMI)
-                      </span>
-                      <span className="font-serif text-2xl font-bold text-[#D16D6D] mt-1 block">
-                        {(creditProfile.emi_to_income_ratio * 100).toFixed(1)}%
-                      </span>
-                    </div>
-
-                    <div className="p-5 rounded-2xl bg-[#FAF8F5] border border-[rgba(31,36,48,0.06)]">
-                      <span className="text-[11px] font-mono text-[#8A92A2] uppercase block">
-                        Current DPD State
-                      </span>
-                      <span className="font-serif text-2xl font-bold text-[#1F2430] mt-1 block">
-                        {creditProfile.dpd_worst || "DPD 0"}
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                <div className="p-6 rounded-2xl bg-[#FCF5E9] border border-[#F3E0BE] flex justify-between items-center">
-                  <div>
-                    <h5 className="font-serif text-base font-bold text-[#1F2430]">
-                      Proactive Loan Restructuring Action Available
-                    </h5>
-                    <p className="text-xs text-[#586071] mt-0.5">
-                      Customer experienced a recent ₹45,000 fraud drain. Extend tenure by 12 months to lower monthly EMI to ₹8,500.
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => alert("Restructuring offer queued for customer notification.")}
-                    className="px-5 py-2.5 rounded-full bg-[#D49D4A] text-white font-semibold text-xs shadow-xs hover:bg-[#C28C3B]"
-                  >
-                    Execute Restructure Offer
-                  </button>
-                </div>
-              </div>
-            </div>
+            <CreditRiskTab />
           )}
 
           {/* TAB 5: EMBEDDED CHECKOUT SIMULATOR */}
