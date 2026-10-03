@@ -42,7 +42,7 @@ export function FinalCtaSection() {
             </a>
 
             <Link
-              href="/analyst"
+              href="/dashboard"
               className="inline-flex items-center gap-2 px-8 py-4 rounded-full bg-white/10 hover:bg-white/15 border border-white/20 text-white text-sm font-semibold transition-all duration-200"
             >
               <Activity className="w-4 h-4 text-[#8FB8A0]" />

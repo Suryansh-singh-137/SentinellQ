@@ -94,9 +94,9 @@ export function Navbar() {
               </button>
             </div>
 
-            {/* Launch Console Access */}
+            {/* Launch Dashboard Access */}
             <Link
-              href="/analyst"
+              href="/dashboard"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#FFFFFF] hover:bg-[#F6F4F0] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-xs font-medium shadow-2xs transition-all duration-150 hover:border-[rgba(31,36,48,0.25)] whitespace-nowrap"
             >
               <Activity className="w-3.5 h-3.5 text-[#8FB8A0]" />
@@ -159,7 +159,7 @@ export function Navbar() {
               ))}
               <div className="pt-3 mt-2 border-t border-[rgba(31,36,48,0.06)] flex flex-col gap-2">
                 <Link
-                  href="/analyst"
+                  href="/dashboard"
                   onClick={() => setMobileMenuOpen(false)}
                   className="w-full flex items-center justify-center gap-2 py-2.5 rounded-full bg-white border border-[rgba(31,36,48,0.1)] text-[#1F2430] font-medium text-xs shadow-2xs"
                 >

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
 import { Container } from "@/components/ui/Container";
@@ -153,12 +154,13 @@ export function Hero() {
                 <ArrowRight className="w-4 h-4 opacity-90" />
               </a>
 
-              <a
-                href="#sandbox"
-                className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-[#FFFFFF] hover:bg-[#FDFCFB] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-[15px] font-medium shadow-xs transition-all duration-200 hover:border-[rgba(31,36,48,0.22)]"
+              <Link
+                href="/dashboard"
+                className="w-full sm:w-auto text-center inline-flex items-center justify-center gap-2 px-6 py-4 rounded-full bg-[#FFFFFF] hover:bg-[#FDFCFB] border border-[rgba(31,36,48,0.12)] text-[#1F2430] text-[15px] font-medium shadow-xs transition-all duration-200 hover:border-[rgba(31,36,48,0.22)] group"
               >
+                <Activity className="w-4 h-4 text-[#8FB8A0] transition-transform duration-200 group-hover:scale-110" />
                 <span>{t.hero.ctaSecondary}</span>
-              </a>
+              </Link>
             </div>
 
             {/* Trust Metrics Pill Strip */}

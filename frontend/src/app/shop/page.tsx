@@ -112,7 +112,7 @@ export default function ShopCheckoutPage() {
             <ArrowLeft className="w-4 h-4" /> Back to SentinelIQ Home
           </Link>
           <Link
-            href="/analyst"
+            href="/dashboard"
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#435278] text-white text-xs font-medium hover:bg-[#344161]"
           >
             Open Analyst Dashboard <ArrowRight className="w-3.5 h-3.5" />
