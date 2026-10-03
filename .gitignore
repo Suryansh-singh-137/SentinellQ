@@ -1,0 +1,76 @@
+# =========================
+# Environment
+# =========================
+
+.env
+.env.*
+!.env.example
+
+# =========================
+# Python
+# =========================
+
+__pycache__/
+*.py[cod]
+*.pyo
+
+.venv/
+venv/
+ENV/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# =========================
+# Node
+# =========================
+
+node_modules/
+.next/
+out/
+.turbo/
+
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# =========================
+# ML
+# =========================
+
+*.joblib
+*.pkl
+*.pickle
+*.pt
+*.pth
+*.onnx
+
+ml/models/
+ml/artifacts/
+
+# =========================
+# Data
+# =========================
+
+data/raw/
+data/generated/
+
+*.csv
+*.parquet
+*.sqlite
+*.db
+
+# =========================
+# IDE
+# =========================
+
+.vscode/
+.idea/
+
+# =========================
+# OS
+# =========================
+
+.DS_Store
+Thumbs.db
