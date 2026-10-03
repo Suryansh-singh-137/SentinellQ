@@ -37,6 +37,17 @@ function hourLabel(offsetMinutes: number = 0): string {
 
 /** Generates 8 time buckets of synthetic but realistic scam telemetry,
  *  seeded from the current time so each render starts fresh. */
+const INITIAL_TREND_DATA: ScamPoint[] = [
+  { time: "09:00", impersonation: 4, mule: 2, phishing: 1 },
+  { time: "11:00", impersonation: 8, mule: 5, phishing: 3 },
+  { time: "13:00", impersonation: 14, mule: 9, phishing: 6 },
+  { time: "15:00", impersonation: 9, mule: 12, phishing: 4 },
+  { time: "17:00", impersonation: 18, mule: 15, phishing: 8 },
+  { time: "19:00", impersonation: 12, mule: 8, phishing: 5 },
+  { time: "21:00", impersonation: 6, mule: 4, phishing: 2 },
+  { time: "23:00", impersonation: 4, mule: 2, phishing: 1 },
+];
+
 function generateLiveTrendData(): ScamPoint[] {
   const now = new Date();
   const minutesPerBucket = 30;
@@ -94,10 +105,11 @@ function MetricCard({
 // ────────────────────────────────────────────────────────────────────
 
 export function OverviewTab({ cases, alerts, wsConnected, onNavigateToQueue }: OverviewTabProps) {
-  const [trendData, setTrendData] = useState<ScamPoint[]>(generateLiveTrendData);
+  const [trendData, setTrendData] = useState<ScamPoint[]>(INITIAL_TREND_DATA);
 
-  // Live-update the scam trend chart every 30 seconds
+  // Live-update the scam trend chart on mount and every 30 seconds
   useEffect(() => {
+    setTrendData(generateLiveTrendData());
     const timer = setInterval(() => {
       setTrendData((prev) => {
         const next = [...prev.slice(1)]; // drop oldest bucket
