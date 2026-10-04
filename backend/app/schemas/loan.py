@@ -56,3 +56,48 @@ class CustomerCreditProfile(BaseModel):
     runway_months: float
     overall_risk_score: float
     risk_tier: str
+    # Extended UI-facing fields for CreditRiskTab
+    customer_name: str | None = None
+    stage: str | None = None
+    late_payment_count: int | None = None
+    net_cash_flow: float | None = None
+    repayment_score: float | None = None
+    cash_runway_months: float | None = None
+    credit_utilization_pct: float | None = None
+    spending_spike_flag: bool | None = None
+    recent_scam_loss_flag: bool | None = None
+    total_scam_loss: float | None = None
+
+    # Trend history & loan specifics
+    emi_trend_history: list[dict] | None = None
+    loan_principal: float | None = None
+    loan_interest_rate: float | None = None
+    loan_tenure_months: int | None = None
+    loan_outstanding_balance: float | None = None
+
+    # Proactive Restructuring proposal fields
+    restructure_eligible: bool | None = None
+    suggested_tenure_extension_months: int | None = None
+    projected_restructured_emi: float | None = None
+    projected_new_emi_ratio: float | None = None
+    restructure_rationale: str | None = None
+
+
+class RestructureRequest(BaseModel):
+    additional_tenure_months: int = 12
+
+
+class RestructureResponse(BaseModel):
+    success: bool
+    customer_id: str
+    message: str
+    previous_emi: float
+    new_emi: float
+    previous_tenure_months: int
+    new_tenure_months: int
+    previous_emi_ratio: float
+    new_emi_ratio: float
+    previous_stage: str
+    new_stage: str
+    profile: CustomerCreditProfile
+

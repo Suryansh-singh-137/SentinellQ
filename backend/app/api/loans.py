@@ -1,6 +1,7 @@
 """
 SentinelIQ – Loans API Routes (FR3).
 Endpoints:
+  - GET /loans/customers/list
   - GET /loans/{customer_id}
   - GET /loans/{customer_id}/credit-profile
   - POST /loans/calculate
@@ -9,10 +10,34 @@ Endpoints:
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from app.schemas.loan import CustomerCreditProfile, LoanRiskMetrics, LoanRiskSummary
+from app.schemas.loan import (
+    CustomerCreditProfile,
+    LoanRiskMetrics,
+    LoanRiskSummary,
+    RestructureRequest,
+    RestructureResponse,
+)
 from app.services.loan.service import LoanRiskService, calculate_loan_risk
+from app.services.loan.data_loader import list_all_customer_aliases, get_risk_row, is_data_loaded
 
 router = APIRouter(prefix="/loans", tags=["Loan Risk & Early Warning"])
+
+
+@router.get("/customers/list")
+async def list_customers():
+    """Returns all available customer aliases with names and risk stages for the UI preset buttons."""
+    aliases = list_all_customer_aliases()
+    customers = []
+    for entry in aliases:
+        risk = get_risk_row(entry["uuid"])
+        stage = risk.get("stage", "Unknown") if risk else "Unknown"
+        customers.append({
+            "id": entry["alias"],
+            "name": entry["name"],
+            "stage": stage,
+            "label": f"{entry['name']} ({stage})",
+        })
+    return {"customers": customers, "total": len(customers), "data_loaded": is_data_loaded()}
 
 
 class LoanCalculationRequest(BaseModel):
@@ -41,6 +66,13 @@ async def get_customer_loans(customer_id: str):
 async def get_customer_credit_profile(customer_id: str):
     """Retrieves comprehensive 360-degree credit distress profile."""
     return LoanRiskService.get_credit_profile(customer_id)
+
+
+@router.post("/{customer_id}/restructure", response_model=RestructureResponse)
+async def restructure_customer_loan(customer_id: str, payload: RestructureRequest = RestructureRequest()):
+    """Executes loan restructuring by extending tenure and lowering monthly EMI."""
+    return LoanRiskService.restructure_loan(customer_id, payload.additional_tenure_months)
+
 
 
 @router.post("/calculate", response_model=LoanRiskMetrics)

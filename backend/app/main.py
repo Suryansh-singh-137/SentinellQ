@@ -2,6 +2,9 @@
 SentinelIQ AI Risk Platform – FastAPI Main Application.
 """
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -13,11 +16,29 @@ from app.api.loans import router as loans_router
 from app.api.payments import router as payments_router
 from app.core.config import settings
 from app.websocket.manager import alert_broadcaster
+from app.services.loan.data_loader import load_all_data, is_data_loaded
+
+logger = logging.getLogger("sentineliq")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup: load generated CSV datasets into memory for data-driven services."""
+    logging.basicConfig(level=logging.INFO)
+    logger.info("Loading generated CSV datasets...")
+    success = load_all_data()
+    if success:
+        logger.info("CSV data loaded successfully — loan service is data-driven.")
+    else:
+        logger.warning("CSV data not found — loan service will use calculation fallback.")
+    yield
+
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version="1.0.0",
     description="Dual-engine AI Risk Monitoring: Real-time Digital Fraud Detection & Proactive Loan Repayment Risk Management",
+    lifespan=lifespan,
 )
 
 # ── CORS Middleware ─────────────────────────────────────────
@@ -66,6 +87,7 @@ async def health():
             "fraud_precheck": "active",
             "scam_classifier": "active",
             "loan_repayment_engine": "active",
+            "loan_data_store": "loaded" if is_data_loaded() else "fallback",
             "mule_graph_analytics": "active",
             "websocket_broadcaster": "active",
         },
